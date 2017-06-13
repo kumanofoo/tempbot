@@ -1,0 +1,12 @@
+[Unit]
+Description=Temperature Bot
+
+[Service]
+ExecStart=/opt/tempbotd.py
+EnvironmentFile=/etc/default/tempbot
+Restart=always
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+

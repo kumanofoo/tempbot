@@ -11,7 +11,13 @@ import sys
 import time
 import datetime
 import websocket
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from slackclient import SlackClient
+import requests
+
 
 # tempbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")
@@ -29,12 +35,9 @@ T_SENSOR_PATH = os.environ.get("T_SENSOR_PATH")
 
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
-EXAMPLE_COMMAND = "do"
-COMMAND_HEY = "hey"
-COMMAND_OK = "ok"
-COMMAND_HELLO = "hello"
 COMMAND_TIME = "time"
 COMMAND_DATE = "date"
+COMMAND_PLOT = "plot"
 TEMP_TO_ALERT = 30
 
 COMMAND_CHAT = {
@@ -62,7 +65,30 @@ def get_temperature():
     return temp
 
 
-def handle_command(command, channel):
+def upload_file(file_path):
+    with open(file_path, 'rb') as f:
+        param = {'token':os.environ.get('SLACK_BOT_TOKEN'),
+                 'channels':CHANNEL_ID, 'title':'temperature'}
+        r = requests.post("https://slack.com/api/files.upload",
+                          params=param, files={'file':f})
+
+
+
+
+def plot_temperature(time, data):
+    fig = plt.figure(figsize=(15, 4))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.plot(time, data, c='#0000ff', alpha=0.7)
+    ax.set_title('temerature')
+    ax.set_ylim(0, 50)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    ax.grid()
+    plt.savefig('/tmp/temp.png', transparent=True, bbox_inches='tight')
+    upload_file('/tmp/temp.png')
+
+
+    
+def handle_command(command, channel, temperature):
     """
         Receives commands directed at the bot and determins if they
         are valid commands. if so, then acts on the commands. if not,
@@ -83,6 +109,13 @@ def handle_command(command, channel):
     if command.startswith(COMMAND_DATE):
         d = datetime.datetime.today()
         response = d.strftime("%Y-%m-%d")
+    if command.startswith(COMMAND_PLOT):
+        time, data = temperature.get_temp_time()
+        if len(time) > 0:
+            plot_temperature(time, data)
+            response = 'plotted!'
+        else:
+            response = 'no data'
 
 
     slack_client.api_call("chat.postMessage", channel=channel,
@@ -109,7 +142,11 @@ class Temperature:
     def __init__(self):
         self.delay = 15
         self.is_hot = False
+        self.tempdata = []
+        self.timedata = []
         self.pre_temp = get_temperature()
+        self.temp_sum = 0
+        self.temp_n = 0
 
     def check_difference(self, cur_temp):
         self.delay = self.delay - 1
@@ -128,7 +165,7 @@ class Temperature:
         if cur_temp > TEMP_TO_ALERT:
             if not self.is_hot:
                 print("Overheating!!!")
-                warning = "_Overheating!!! (" + str(cur_temp) + "°C_)"
+                warning = "_Overheating!!! (" + str(cur_temp) + "°C)"
                 slack_client.api_call("chat.postMessage",
                                       channel=CHANNEL_ID,
                                       text=warning,
@@ -144,10 +181,29 @@ class Temperature:
                                       as_user=True)
                 self.is_hot = False
 
+
     def checkTemperature(self):
         temp = get_temperature()
         self.check_difference(temp)
         self.check_overheating(temp)
+
+        self.temp_sum += temp
+        self.temp_n += 1
+        if self.temp_n == 30:
+            if len(self.tempdata) > 60*24:
+                self.tempdata.pop(0)
+            self.tempdata.append(self.temp_sum/self.temp_n)
+            if len(self.timedata) > 60*24:
+                self.timedata.pop(0)
+            self.timedata.append(datetime.datetime.today())
+
+            self.temp_sum = 0
+            self.temp_n = 0
+
+ 
+ 
+    def get_temp_time(self):
+        return self.timedata, self.tempdata
 
 
 
@@ -165,7 +221,7 @@ if __name__ == "__main__":
             try:
                 command, channel = parse_slack_output(slack_client.rtm_read())
                 if command and channel:
-                    handle_command(command, channel)
+                    handle_command(command, channel, temperature)
 
                 temperature.checkTemperature()
                 time.sleep(READ_WEBSOCKET_DELAY)

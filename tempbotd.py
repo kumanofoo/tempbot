@@ -83,7 +83,7 @@ def plot_temperature(time, data):
     ax.set_ylim(0, 50)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     ax.grid()
-    plt.savefig('/tmp/temp.png', transparent=True, bbox_inches='tight')
+    plt.savefig('/tmp/temp.png', transparent=False, bbox_inches='tight')
     upload_file('/tmp/temp.png')
 
 
@@ -165,14 +165,14 @@ class Temperature:
         if cur_temp > TEMP_TO_ALERT:
             if not self.is_hot:
                 print("Overheating!!!")
-                warning = "_Overheating!!! (" + str(cur_temp) + "°C)"
+                warning = "_Overheating!!! (" + str(cur_temp) + "°C)_"
                 slack_client.api_call("chat.postMessage",
                                       channel=CHANNEL_ID,
                                       text=warning,
                                       as_user=True)
                 self.is_hot = True
         else:
-            if self.is_hot:
+            if self.is_hot and cur_temp < TEMP_TO_ALERT:
                 print("It's cool!")
                 warning = "It's cool! (" + str(cur_temp) + "°C)"
                 slack_client.api_call("chat.postMessage",

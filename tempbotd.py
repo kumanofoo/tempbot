@@ -18,17 +18,18 @@ import matplotlib.dates as mdates
 from slackclient import SlackClient
 import requests
 
+import anyping as ap
 
 # tempbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")
 if not BOT_ID:
     sys.stderr.write('no environment variable BOT_ID\n')
-    exit()
+    exit(1)
 
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 if not CHANNEL_ID:
     sys.stderr.write('no environment variable CHANNEL_ID\n')
-    exit()
+    exit(1)
     
 T_SENSOR_PATH = os.environ.get("T_SENSOR_PATH")
 
@@ -38,6 +39,7 @@ AT_BOT = "<@" + BOT_ID + ">"
 COMMAND_TIME = "time"
 COMMAND_DATE = "date"
 COMMAND_PLOT = "plot"
+COMMAND_PING = "ping"
 TEMP_TO_ALERT = 30
 
 COMMAND_CHAT = {
@@ -88,7 +90,7 @@ def plot_temperature(time, data):
 
 
     
-def handle_command(command, channel, temperature):
+def handle_command(command, channel, temperature, pingservers):
     """
         Receives commands directed at the bot and determins if they
         are valid commands. if so, then acts on the commands. if not,
@@ -116,6 +118,8 @@ def handle_command(command, channel, temperature):
             response = 'plotted!'
         else:
             response = 'no data'
+    if command.startswith(COMMAND_PING):
+        response = pingservers.get_status_of_servers()
 
 
     slack_client.api_call("chat.postMessage", channel=channel,
@@ -206,22 +210,25 @@ class Temperature:
         return self.timedata, self.tempdata
 
 
-
 if __name__ == "__main__":
     temperature = Temperature()
+    pingservers = ap.Servers()
 
     READ_WEBSOCKET_DELAY = 2 # 2 second delay between reading from firehose
+    PING_INTERVAL_TIMER = int(pingservers.interval/READ_WEBSOCKET_DELAY)
+
     if slack_client.rtm_connect():
         print("Temperature Bot connected and running!")
         tmpr = get_temperature()
         if tmpr == -100:
             print("without temperature sensor...")
 
+        ping_timer = PING_INTERVAL_TIMER
         while True:
             try:
                 command, channel = parse_slack_output(slack_client.rtm_read())
                 if command and channel:
-                    handle_command(command, channel, temperature)
+                    handle_command(command, channel, temperature, pingservers)
 
                 temperature.checkTemperature()
                 time.sleep(READ_WEBSOCKET_DELAY)
@@ -240,6 +247,18 @@ if __name__ == "__main__":
             except Exception, e:
                 print(e)
                 time.sleep(READ_WEBSOCKET_DELAY)
+
+            ping_timer -= 1
+            if ping_timer == 0:
+                ping_timer = PING_INTERVAL_TIMER
+                message = pingservers.ping()
+                if message:
+                    slack_client.api_call("chat.postMessage",
+                                          channel=CHANNEL_ID,
+                                          text=message,
+                                          as_user=True)
+
+
     else:
         sys.stderr.write("Connection failed. Invalid Slack token or bot ID?")
 

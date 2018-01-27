@@ -1,4 +1,4 @@
-#! /usr/bin/python -u
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """
@@ -19,6 +19,7 @@ from slackclient import SlackClient
 import requests
 
 import anyping as ap
+import weather as wt
 
 # tempbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")
@@ -210,9 +211,57 @@ class Temperature:
         return self.timedata, self.tempdata
 
 
+
+class OutsideTemperture(wt.weather):
+    def __init__(self):
+        super().__init__()
+        self.datetime_format = 'at %I:%M %p on %A'
+        self.degree = '°C'
+        self.interval = datetime.timedelta(hours=6))
+        self.fetch_time = datetime.datetime.now() - self.interval
+
+        
+    def checkTemperature(self, min=-5.0, max=30.0):
+        now = datetime.datetime.now()
+        if now < (self.fetch_time + self.interval):
+            return ""
+
+        self.fetch_time = now
+        super().fetch()
+        low, lowDatetime = super().lowest()
+        low_t = lowDatetime.strftime(self.datetime_format)
+        high, highDatetime = super().highest()
+        high_t = highDatetime.strftime(self.datetime_format)
+        mes = ""
+        if low <= min:
+            if mes != "":
+                mes += "\n"
+            mes += "keep your pipes!!\n"
+            mes += "A low of %.1f%s %s" % (low, self.degree, low_t)
+        if high < 0:
+            if mes != "":
+                mes += "\n"
+            mes += "It will be too cold!!\n"
+            mes += "A high of %.1f%s %s" % (high, self.degree, high_t)
+        if high > max:
+            if mes != "":
+                mes += "\n"
+            mes += "It will be too hot!!\n"
+            mes += "A high of %.1f%s %s" % (high, self.degree, high_t)
+        if low > max:
+            if mes != "":
+                mes += "\n"
+            mes += "You become butter...\n"
+            mes += "A low of %.1f%s %s" % (low, self.degree, low_t)
+
+        return mes
+
+
 if __name__ == "__main__":
     temperature = Temperature()
     pingservers = ap.Servers()
+    forecast = OutsideTemperture()
+
 
     READ_WEBSOCKET_DELAY = 2 # 2 second delay between reading from firehose
     PING_INTERVAL_TIMER = int(pingservers.interval/READ_WEBSOCKET_DELAY)
@@ -244,7 +293,7 @@ if __name__ == "__main__":
                                       channel=CHANNEL_ID,
                                       text=warning,
                                       as_user=True)
-            except Exception, e:
+            except Exception as e:
                 print(e)
                 time.sleep(READ_WEBSOCKET_DELAY)
 
@@ -257,6 +306,13 @@ if __name__ == "__main__":
                                           channel=CHANNEL_ID,
                                           text=message,
                                           as_user=True)
+
+            message = forecast.checkTemperature()
+            if message:
+                slack_client.api_call("chat.postMessage",
+                                      channel=CHANNEL_ID,
+                                      text=message,
+                                      as_user=True)
 
 
     else:

@@ -41,6 +41,7 @@ COMMAND_TIME = "time"
 COMMAND_DATE = "date"
 COMMAND_PLOT = "plot"
 COMMAND_PING = "ping"
+COMMAND_WEATHER = "weather"
 TEMP_TO_ALERT = 30
 
 COMMAND_CHAT = {
@@ -91,7 +92,7 @@ def plot_temperature(time, data):
 
 
     
-def handle_command(command, channel, temperature, pingservers):
+def handle_command(command, channel, temperature, pingservers, forecast):
     """
         Receives commands directed at the bot and determins if they
         are valid commands. if so, then acts on the commands. if not,
@@ -121,6 +122,8 @@ def handle_command(command, channel, temperature, pingservers):
             response = 'no data'
     if command.startswith(COMMAND_PING):
         response = pingservers.get_status_of_servers()
+    if command.startswith(COMMAND_WEATHER):
+        response = forecast.fetch_temperature()
 
 
     slack_client.api_call("chat.postMessage", channel=channel,
@@ -212,14 +215,28 @@ class Temperature:
 
 
 
-class OutsideTemperature(wt.weather):
-    def __init__(self):
-        super().__init__()
+class OutsideTemperature():
+    def __init__(self, interval=4):
         self.datetime_format = 'at %I:%M %p on %A'
         self.degree = '°C'
-        self.interval = datetime.timedelta(hours=6)
+        self.interval = datetime.timedelta(hours=interval)
         self.fetch_time = datetime.datetime.now() - self.interval
 
+
+
+    def fetch_temperature(self):
+        wt.fetch()
+        low = wt.lowest_temp
+        high = wt.highest_temp
+        low_t = wt.lowest_temp_time.strftime(self.datetime_format)
+        high_t = wt.highest_temp_time.strftime(self.datetime_format)
+
+        mes = "A low of %.1f%s %s\n" % (low, self.degree, low_t)
+        mes += "A high of %.1f%s %s" % (high, self.degree, high_t)
+
+        return mes
+
+    
         
     def checkTemperature(self, min=-5.0, max=30.0):
         now = datetime.datetime.now()
@@ -227,11 +244,11 @@ class OutsideTemperature(wt.weather):
             return ""
 
         self.fetch_time = now
-        super().fetch()
-        low, lowDatetime = super().lowest()
-        low_t = lowDatetime.strftime(self.datetime_format)
-        high, highDatetime = super().highest()
-        high_t = highDatetime.strftime(self.datetime_format)
+        wt.fetch()
+        low = wt.lowest_temp
+        high = wt.highest_temp
+        low_t = wt.lowest_temp_time.strftime(self.datetime_format)
+        high_t = wt.highest_temp_time.strftime(self.datetime_format)
         mes = ""
         if low <= min:
             if mes != "":
@@ -277,7 +294,7 @@ if __name__ == "__main__":
             try:
                 command, channel = parse_slack_output(slack_client.rtm_read())
                 if command and channel:
-                    handle_command(command, channel, temperature, pingservers)
+                    handle_command(command, channel, temperature, pingservers, forecast)
 
                 temperature.checkTemperature()
                 time.sleep(READ_WEBSOCKET_DELAY)

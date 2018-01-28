@@ -212,12 +212,12 @@ class Temperature:
 
 
 
-class OutsideTemperture(wt.weather):
+class OutsideTemperature(wt.weather):
     def __init__(self):
         super().__init__()
         self.datetime_format = 'at %I:%M %p on %A'
         self.degree = '°C'
-        self.interval = datetime.timedelta(hours=6))
+        self.interval = datetime.timedelta(hours=6)
         self.fetch_time = datetime.datetime.now() - self.interval
 
         
@@ -260,7 +260,7 @@ class OutsideTemperture(wt.weather):
 if __name__ == "__main__":
     temperature = Temperature()
     pingservers = ap.Servers()
-    forecast = OutsideTemperture()
+    forecast = OutsideTemperature()
 
 
     READ_WEBSOCKET_DELAY = 2 # 2 second delay between reading from firehose

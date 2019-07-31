@@ -19,7 +19,7 @@ from slackclient import SlackClient
 import requests
 
 import anyping as ap
-import weather as wt
+from weather import Weather
 
 # tempbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")
@@ -42,8 +42,36 @@ COMMAND_DATE = "date"
 COMMAND_PLOT = "plot"
 COMMAND_PING = "ping"
 COMMAND_WEATHER = "weather"
-TEMP_TO_ALERT = 30
 
+# default parameters
+ROOM_HOT_ALERT_THRESHOLD = 35.0 # [degrees celsius]
+OUTSIDE_HOT_ALERT_THRESHOLD = 30.0 # [degrees celsius]
+PIPE_ALERT_THRESHOLD = -5.0 # [degrees celsius]
+
+if os.environ.get("ROOM_HOT_ALERT_THRESHOLD"):
+    try:
+        ROOM_HOT_ALERT_THRESHOLD =  float(os.environ.get("ROOM_HOT_ALERT_THRESHOLD"))
+    except Exception as e:
+        print(str(e))
+print("ROOM_HOT_ALERT_THRESHOLD:", ROOM_HOT_ALERT_THRESHOLD)
+
+if os.environ.get("OUTSIDE_HOT_ALERT_THRESHOLD"):
+    try:
+        OUTSIDE_HOT_ALERT_THRESHOLD = float(os.environ.get("OUTSIDE_HOT_ALERT_THRESHOLD"))
+    except Exception as e:
+        print(str(e))
+print("OUTSIDE_HOT_ALERT_THRESHOLD:", OUTSIDE_HOT_ALERT_THRESHOLD)
+
+
+if os.environ.get("PIPE_ALERT_THRESHOLD"):
+    try:
+        PIPE_ALERT_THRESHOLD = float(os.environ.get("PIPE_ALERT_THRESHOLD"))
+    except Exception as e:
+        print(str(e))
+print("PIPE_ALERT_THRESHOLD:", PIPE_ALERT_THRESHOLD)
+
+
+# command list
 COMMAND_CHAT = {
     "hey":"Siri!",
     "ok":"Google!",
@@ -63,8 +91,8 @@ def get_temperature():
         with open(T_SENSOR_PATH) as f:
             data = f.read()
             temp = int(data[data.index('t=')+2:])/1000
-    except IOError as e:
-        pass
+    except Exception as e:
+        print("get_temperature():", e)
 
     return temp
 
@@ -170,7 +198,7 @@ class Temperature:
                                       as_user=True)
 
     def check_overheating(self, cur_temp):
-        if cur_temp > TEMP_TO_ALERT:
+        if cur_temp > ROOM_HOT_ALERT_THRESHOLD:
             if not self.is_hot:
                 print("Overheating!!!")
                 warning = "_Overheating!!! (" + str(cur_temp) + "°C)_"
@@ -180,7 +208,7 @@ class Temperature:
                                       as_user=True)
                 self.is_hot = True
         else:
-            if self.is_hot and cur_temp < TEMP_TO_ALERT:
+            if self.is_hot and cur_temp < ROOM_HOT_ALERT_THRESHOLD:
                 print("It's cool!")
                 warning = "It's cool! (" + str(cur_temp) + "°C)"
                 slack_client.api_call("chat.postMessage",
@@ -217,6 +245,7 @@ class Temperature:
 
 class OutsideTemperature():
     def __init__(self, interval=4):
+        self.wt = Weather()
         self.datetime_format = 'at %I:%M %p on %A'
         self.degree = '°C'
         self.interval = datetime.timedelta(hours=interval)
@@ -225,14 +254,14 @@ class OutsideTemperature():
 
 
     def fetch_temperature(self):
-        wt.fetch()
-        low = wt.lowest_temp
-        high = wt.highest_temp
-        low_t = wt.lowest_temp_time.strftime(self.datetime_format)
-        high_t = wt.highest_temp_time.strftime(self.datetime_format)
+        self.wt.fetch()
+        low, low_t = self.wt.lowest()
+        high, high_t = self.wt.highest()
+        low_t_str = low_t.strftime(self.datetime_format)
+        high_t_str = high_t.strftime(self.datetime_format)
 
-        mes = "A low of %.1f%s %s\n" % (low, self.degree, low_t)
-        mes += "A high of %.1f%s %s" % (high, self.degree, high_t)
+        mes = "A low of %.1f%s %s\n" % (low, self.degree, low_t_str)
+        mes += "A high of %.1f%s %s" % (high, self.degree, high_t_str)
 
         return mes
 
@@ -244,32 +273,32 @@ class OutsideTemperature():
             return ""
 
         self.fetch_time = now
-        wt.fetch()
-        low = wt.lowest_temp
-        high = wt.highest_temp
-        low_t = wt.lowest_temp_time.strftime(self.datetime_format)
-        high_t = wt.highest_temp_time.strftime(self.datetime_format)
+        self.wt.fetch()
+        low, low_t = self.wt.lowest()
+        high, high_t = self.wt.highest()
+        low_t_str = low_t.strftime(self.datetime_format)
+        high_t_str = high_t.strftime(self.datetime_format)
         mes = ""
-        if low <= min:
+        if low_t > now and low <= min:
             if mes != "":
                 mes += "\n"
             mes += "keep your pipes!!\n"
-            mes += "A low of %.1f%s %s" % (low, self.degree, low_t)
-        if high < 0:
+            mes += "A low of %.1f%s %s" % (low, self.degree, low_t_str)
+        if high_t > now and high < 0:
             if mes != "":
                 mes += "\n"
             mes += "It will be too cold!!\n"
-            mes += "A high of %.1f%s %s" % (high, self.degree, high_t)
-        if high > max:
+            mes += "A high of %.1f%s %s" % (high, self.degree, high_t_str)
+        if high_t > now and high > max:
             if mes != "":
                 mes += "\n"
             mes += "It will be too hot!!\n"
-            mes += "A high of %.1f%s %s" % (high, self.degree, high_t)
-        if low > max:
+            mes += "A high of %.1f%s %s" % (high, self.degree, high_t_str)
+        if low_t > now and low > max:
             if mes != "":
                 mes += "\n"
             mes += "You become butter...\n"
-            mes += "A low of %.1f%s %s" % (low, self.degree, low_t)
+            mes += "A low of %.1f%s %s" % (low, self.degree, low_t_str)
 
         return mes
 
@@ -324,7 +353,8 @@ if __name__ == "__main__":
                                           text=message,
                                           as_user=True)
 
-            message = forecast.checkTemperature()
+            message = forecast.checkTemperature(min=PIPE_ALERT_THRESHOLD,
+                                                max=OUTSIDE_HOT_ALERT_THRESHOLD)
             if message:
                 slack_client.api_call("chat.postMessage",
                                       channel=CHANNEL_ID,

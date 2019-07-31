@@ -4,3 +4,8 @@ BOT_ID=YYYYYYYYY
 T_SENSOR_PATH=/sys/bus/w1/devices/XX-YYYYYYYYYYYY/w1_slave
 
 ANYPING_CONFIG=/usr/local/etc/anyping.conf
+
+# degrees [celsius]
+#ROOM_HOT_ALERT_THRESHOLD=35.0
+#OUTSIDE_HOT_ALERT_THRESHOLD=30.0  # <highest
+#PIPE_ALERT_THRESHOLD=-5.0 # >lowest

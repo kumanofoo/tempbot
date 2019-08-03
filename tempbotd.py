@@ -10,16 +10,16 @@ import os
 import time
 import datetime
 import websocket
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from slackclient import SlackClient
 import requests
-
+import logging
 import anyping as ap
 from weather import Weather
 
-import logging
+import matplotlib
+matplotlib.use("Agg") # noqa
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 # global logging settings
 # log_level = logging.DEBUG
@@ -30,9 +30,6 @@ logging.basicConfig(level=log_level, format=formatter)
 
 # logger setting
 log = logging.getLogger('tempbotd')
-
-# save figure to file
-matplotlib.use("Agg")
 
 # tempbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")

@@ -4,10 +4,17 @@
 # http://www.leancrew.com/all-this/2012/10/matplotlib-and-the-dark-sky-api/
 
 import os
-import sys
 from datetime import datetime
 import json
 import requests
+
+import logging
+log = logging.getLogger(__name__)
+
+
+class WeatherError(Exception):
+    pass
+
 
 class Weather:
     """
@@ -15,37 +22,32 @@ class Weather:
     """
     def __init__(self):
         self.weather = ''
-        
+
         MY_PLACE = os.environ.get("MY_PLACE")
         if not MY_PLACE:
-            sys.stderr.write('no environment variable MY_PLACE\n')
-            exit(1)
+            raise WeatherError("no environment variable MY_PLACE")
         else:
             self.lat, self.lon = MY_PLACE.split(':')
 
         self.api_key = os.environ.get("DARK_SKY_KEY")
         if not self.api_key:
-            sys.stderr.write('no environment variable DARK_SKY_KEY\n')
-            exit(1)
+            raise WeatherError("no environment variable DARK_SKY_KEY")
 
         self.weather = ''
 
-
-
     def fetch(self):
-        url = 'https://api.darksky.net/forecast/%s/%s,%s?units=auto' % (self.api_key, self.lat, self.lon)
+        url = (
+            'https://api.darksky.net/forecast/%s/%s,%s?units=auto'
+            % (self.api_key, self.lat, self.lon))
         resp = requests.get(url)
         if resp.status_code == 200:
             self.weather = json.loads(resp.text)
         else:
-            sys.stderr.write("Connection failure to %s\n" % url)
-            exit(1)
+            log.error("Connection failure to %s" % url)
 
         # APIs https://darksky.net/dev/docs
-        #timezone = weather['timezone']
+        # timezone = weather['timezone']
 
-
-        
     def lowest(self):
         if self.weather == '':
             self.fetch()
@@ -55,8 +57,6 @@ class Weather:
         lowTimeStr = datetime.fromtimestamp(lowTime)
 
         return low, lowTimeStr
-
-
 
     def highest(self):
         if self.weather == '':
@@ -68,8 +68,6 @@ class Weather:
 
         return high, highTimeStr
 
-
-
     def summary(self):
         if self.weather == '':
             self.fetch()
@@ -78,17 +76,18 @@ class Weather:
         return summary
 
 
-
-
 if __name__ == '__main__':
     w = Weather()
     w.fetch()
-    
+
     text = w.summary()
     print(text)
-    
+
     high, highTime = w.highest()
-    print('highest temperature: ', high, highTime.strftime("at %I:%M %p on %A"))
+    print(
+        'highest temperature: ',
+        high,
+        highTime.strftime("at %I:%M %p on %A"))
 
     low, lowTime = w.lowest()
     print('lowest temperature: ', low, lowTime.strftime("at %I:%M %p on %A"))
@@ -102,4 +101,3 @@ if __name__ == '__main__':
         print("so cold!!")
     elif low < 5:
         print("cold!!")
-

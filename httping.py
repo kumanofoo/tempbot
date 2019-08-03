@@ -1,12 +1,13 @@
 #! /usr/bin/env python
 
 import requests
-import json
 import time
+
 
 class Server:
     down = 1
     up = 2
+
     def __init__(self, url):
         self.url = url
         self.timeout = 3
@@ -14,24 +15,21 @@ class Server:
         if self.get_status() == 200:
             self.server_status = self.up
 
-
     def is_alive(self):
         response = self.get_status()
         if response == 200:
             alive = True
-            
         else:
             alive = False
 
         return alive, response
-
 
     def get_status(self):
         status_code = -1
         try:
             response = requests.get(self.url, timeout=self.timeout)
         except (requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout) as e:
+                requests.exceptions.Timeout):
             status_code = 500
         else:
             status_code = response.status_code
@@ -51,4 +49,3 @@ if __name__ == "__main__":
         for server in servers:
             print(server.url, server.is_alive())
         time.sleep(60)
-

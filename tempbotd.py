@@ -7,12 +7,10 @@ How to Build Your First Slack Bot With Python
 https://www.fullstackpython.com/blog/build-first-slack-bot-python.html
 """
 import os
-import sys
 import time
 import datetime
 import websocket
 import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from slackclient import SlackClient
@@ -21,18 +19,40 @@ import requests
 import anyping as ap
 from weather import Weather
 
+import logging
+
+# global logging settings
+# log_level = logging.DEBUG
+# formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
+log_level = logging.INFO
+formatter = '%(message)s'
+logging.basicConfig(level=log_level, format=formatter)
+
+# logger setting
+log = logging.getLogger('tempbotd')
+
+# save figure to file
+matplotlib.use("Agg")
+
 # tempbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")
 if not BOT_ID:
-    sys.stderr.write('no environment variable BOT_ID\n')
+    log.critical('no environment variable BOT_ID')
     exit(1)
 
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 if not CHANNEL_ID:
-    sys.stderr.write('no environment variable CHANNEL_ID\n')
+    log.critical('no environment variable CHANNEL_ID')
     exit(1)
-    
+
+SLACK_BOT_TOKEN = os.environ.get('SLACK_BOT_TOKEN')
+if not SLACK_BOT_TOKEN:
+    log.critical('no environment variable SLACK_BOT_TOKEN')
+    exit(1)
+
 T_SENSOR_PATH = os.environ.get("T_SENSOR_PATH")
+if not T_SENSOR_PATH:
+    log.warning('no environment variable T_SENSOR_PATH')
 
 
 # constants
@@ -44,45 +64,47 @@ COMMAND_PING = "ping"
 COMMAND_WEATHER = "weather"
 
 # default parameters
-ROOM_HOT_ALERT_THRESHOLD = 35.0 # [degrees celsius]
-OUTSIDE_HOT_ALERT_THRESHOLD = 30.0 # [degrees celsius]
-PIPE_ALERT_THRESHOLD = -5.0 # [degrees celsius]
+READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
+WEATHER_FETCH_INTERVAL = 30*60      # [sec]
+ROOM_HOT_ALERT_THRESHOLD = 35.0     # [degrees celsius]
+OUTSIDE_HOT_ALERT_THRESHOLD = 30.0  # [degrees celsius]
+PIPE_ALERT_THRESHOLD = -5.0         # [degrees celsius]
 
 if os.environ.get("ROOM_HOT_ALERT_THRESHOLD"):
     try:
-        ROOM_HOT_ALERT_THRESHOLD =  float(os.environ.get("ROOM_HOT_ALERT_THRESHOLD"))
+        ROOM_HOT_ALERT_THRESHOLD = float(
+            os.environ.get("ROOM_HOT_ALERT_THRESHOLD"))
     except Exception as e:
-        print(str(e))
-print("ROOM_HOT_ALERT_THRESHOLD:", ROOM_HOT_ALERT_THRESHOLD)
+        log.warning(str(e))
+log.debug("ROOM_HOT_ALERT_THRESHOLD: %.1f" % ROOM_HOT_ALERT_THRESHOLD)
 
 if os.environ.get("OUTSIDE_HOT_ALERT_THRESHOLD"):
     try:
-        OUTSIDE_HOT_ALERT_THRESHOLD = float(os.environ.get("OUTSIDE_HOT_ALERT_THRESHOLD"))
+        OUTSIDE_HOT_ALERT_THRESHOLD = float(
+            os.environ.get("OUTSIDE_HOT_ALERT_THRESHOLD"))
     except Exception as e:
-        print(str(e))
-print("OUTSIDE_HOT_ALERT_THRESHOLD:", OUTSIDE_HOT_ALERT_THRESHOLD)
-
+        log.warning(str(e))
+log.debug("OUTSIDE_HOT_ALERT_THRESHOLD: %.1f" % OUTSIDE_HOT_ALERT_THRESHOLD)
 
 if os.environ.get("PIPE_ALERT_THRESHOLD"):
     try:
         PIPE_ALERT_THRESHOLD = float(os.environ.get("PIPE_ALERT_THRESHOLD"))
     except Exception as e:
-        print(str(e))
-print("PIPE_ALERT_THRESHOLD:", PIPE_ALERT_THRESHOLD)
+        log.warning(str(e))
+log.debug("PIPE_ALERT_THRESHOLD: %.1f" % PIPE_ALERT_THRESHOLD)
 
 
 # command list
 COMMAND_CHAT = {
-    "hey":"Siri!",
-    "ok":"Google!",
-    "hello":"World!",
-    "do":"Sure...write some more code then i can do that!",
+    "hey": "Siri!",
+    "ok": "Google!",
+    "hello": "World!",
+    "do": "Sure...write some more code then i can do that!",
 }
 
 
-
 # instantiate Slack & Twilio clients
-slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
+slack_client = SlackClient(SLACK_BOT_TOKEN)
 
 
 def get_temperature():
@@ -92,19 +114,18 @@ def get_temperature():
             data = f.read()
             temp = int(data[data.index('t=')+2:])/1000
     except Exception as e:
-        print("get_temperature():", e)
+        log.warning("get_temperature(): %s" % e)
 
     return temp
 
 
 def upload_file(file_path):
     with open(file_path, 'rb') as f:
-        param = {'token':os.environ.get('SLACK_BOT_TOKEN'),
-                 'channels':CHANNEL_ID, 'title':'temperature'}
+        param = {'token': os.environ.get('SLACK_BOT_TOKEN'),
+                 'channels': CHANNEL_ID, 'title': 'temperature'}
         r = requests.post("https://slack.com/api/files.upload",
-                          params=param, files={'file':f})
-
-
+                          params=param, files={'file': f})
+        log.debug(r)
 
 
 def plot_temperature(time, data):
@@ -119,7 +140,6 @@ def plot_temperature(time, data):
     upload_file('/tmp/temp.png')
 
 
-    
 def handle_command(command, channel, temperature, pingservers, forecast):
     """
         Receives commands directed at the bot and determins if they
@@ -149,10 +169,15 @@ def handle_command(command, channel, temperature, pingservers, forecast):
         else:
             response = 'no data'
     if command.startswith(COMMAND_PING):
-        response = pingservers.get_status_of_servers()
+        if pingservers:
+            response = pingservers.get_status_of_servers()
+        else:
+            response = 'ping is not available'
     if command.startswith(COMMAND_WEATHER):
-        response = forecast.fetch_temperature()
-
+        if forecast:
+            response = forecast.fetch_temperature()
+        else:
+            response = 'weather information is not available'
 
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)
@@ -200,7 +225,7 @@ class Temperature:
     def check_overheating(self, cur_temp):
         if cur_temp > ROOM_HOT_ALERT_THRESHOLD:
             if not self.is_hot:
-                print("Overheating!!!")
+                log.info("Overheating!!!")
                 warning = "_Overheating!!! (" + str(cur_temp) + "°C)_"
                 slack_client.api_call("chat.postMessage",
                                       channel=CHANNEL_ID,
@@ -209,7 +234,7 @@ class Temperature:
                 self.is_hot = True
         else:
             if self.is_hot and cur_temp < ROOM_HOT_ALERT_THRESHOLD:
-                print("It's cool!")
+                log.info("It's cool!")
                 warning = "It's cool! (" + str(cur_temp) + "°C)"
                 slack_client.api_call("chat.postMessage",
                                       channel=CHANNEL_ID,
@@ -217,8 +242,7 @@ class Temperature:
                                       as_user=True)
                 self.is_hot = False
 
-
-    def checkTemperature(self):
+    def check_temperature(self):
         temp = get_temperature()
         self.check_difference(temp)
         self.check_overheating(temp)
@@ -236,11 +260,8 @@ class Temperature:
             self.temp_sum = 0
             self.temp_n = 0
 
- 
- 
     def get_temp_time(self):
         return self.timedata, self.tempdata
-
 
 
 class OutsideTemperature():
@@ -250,8 +271,6 @@ class OutsideTemperature():
         self.degree = '°C'
         self.interval = datetime.timedelta(hours=interval)
         self.fetch_time = datetime.datetime.now() - self.interval
-
-
 
     def fetch_temperature(self):
         self.wt.fetch()
@@ -265,9 +284,7 @@ class OutsideTemperature():
 
         return mes
 
-    
-        
-    def checkTemperature(self, min=-5.0, max=30.0):
+    def check_temperature(self, min=-5.0, max=30.0):
         now = datetime.datetime.now()
         if now < (self.fetch_time + self.interval):
             return ""
@@ -305,34 +322,54 @@ class OutsideTemperature():
 
 if __name__ == "__main__":
     temperature = Temperature()
-    pingservers = ap.Servers()
-    forecast = OutsideTemperature()
 
+    try:
+        pingservers = ap.Servers()
+    except Exception as e:
+        log.error("Anyping: %s" % e)
+        log.info("Disable any pings")
+        pingservers = None
 
-    READ_WEBSOCKET_DELAY = 2 # 2 second delay between reading from firehose
-    PING_INTERVAL_TIMER = int(pingservers.interval/READ_WEBSOCKET_DELAY)
+    try:
+        forecast = OutsideTemperature()
+        WEATHER_FETCH_INTERVAL /= READ_WEBSOCKET_DELAY
+    except Exception as e:
+        log.error("Weather forecast: %s" % e)
+        log.info("Disable outside temperature message")
+        forecast = None
+
+    if pingservers:
+        PING_INTERVAL_TIMER = int(pingservers.interval/READ_WEBSOCKET_DELAY)
+    else:
+        PING_INTERVAL_TIMER = -1
 
     if slack_client.rtm_connect():
-        print("Temperature Bot connected and running!")
+        log.info("Temperature Bot connected and running!")
         tmpr = get_temperature()
         if tmpr == -100:
-            print("without temperature sensor...")
+            log.info("without temperature sensor...")
 
-        ping_timer = PING_INTERVAL_TIMER
+        forecast_timer = 1
+        ping_timer = 1
         while True:
             try:
                 command, channel = parse_slack_output(slack_client.rtm_read())
+                log.debug("got command(%s): %s" % (channel, command))
                 if command and channel:
-                    handle_command(command, channel, temperature, pingservers, forecast)
+                    handle_command(command,
+                                   channel,
+                                   temperature,
+                                   pingservers,
+                                   forecast)
 
-                temperature.checkTemperature()
+                temperature.check_temperature()
                 time.sleep(READ_WEBSOCKET_DELAY)
             except websocket.WebSocketConnectionClosedException as e:
-                sys.stderr.write(e)
-                sys.stderr.write('Caught websocket disconnect, reconnecting...')
+                log.warning(e)
+                log.warning('Caught websocket disconnect, reconnecting...')
                 time.sleep(READ_WEBSOCKET_DELAY)
                 while not slack_client.rtm_connect():
-                    sys.stderr.write('Caught websocket disconnect, reconnecting...')
+                    log.warning('Caught websocket disconnect, reconnecting...')
                     time.sleep(READ_WEBSOCKET_DELAY)
                 warning = "I'm back!"
                 slack_client.api_call("chat.postMessage",
@@ -340,28 +377,33 @@ if __name__ == "__main__":
                                       text=warning,
                                       as_user=True)
             except Exception as e:
-                print(e)
+                log.warning(e)
                 time.sleep(READ_WEBSOCKET_DELAY)
 
-            ping_timer -= 1
-            if ping_timer == 0:
-                ping_timer = PING_INTERVAL_TIMER
-                message = pingservers.ping()
-                if message:
-                    slack_client.api_call("chat.postMessage",
-                                          channel=CHANNEL_ID,
-                                          text=message,
-                                          as_user=True)
+            if pingservers:
+                ping_timer -= 1
+                log.debug("do anyping: %d" % ping_timer)
+                if ping_timer <= 0:
+                    ping_timer = PING_INTERVAL_TIMER
+                    message = pingservers.ping()
+                    if message:
+                        slack_client.api_call("chat.postMessage",
+                                              channel=CHANNEL_ID,
+                                              text=message,
+                                              as_user=True)
 
-            message = forecast.checkTemperature(min=PIPE_ALERT_THRESHOLD,
-                                                max=OUTSIDE_HOT_ALERT_THRESHOLD)
-            if message:
-                slack_client.api_call("chat.postMessage",
-                                      channel=CHANNEL_ID,
-                                      text=message,
-                                      as_user=True)
-
-
+            if forecast:
+                forecast_timer -= 1
+                log.debug("do forecast: %d" % forecast_timer)
+                if forecast_timer <= 0:
+                    forecast_timer = WEATHER_FETCH_INTERVAL
+                    message = forecast.check_temperature(
+                        min=PIPE_ALERT_THRESHOLD,
+                        max=OUTSIDE_HOT_ALERT_THRESHOLD)
+                    if message:
+                        slack_client.api_call("chat.postMessage",
+                                              channel=CHANNEL_ID,
+                                              text=message,
+                                              as_user=True)
     else:
-        sys.stderr.write("Connection failed. Invalid Slack token or bot ID?")
-
+        log.critical("Connection failed. Invalid Slack token or bot ID?")

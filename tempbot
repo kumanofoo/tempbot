@@ -3,7 +3,7 @@ CHANNEL_ID=XXXXXXXXX
 BOT_ID=YYYYYYYYY
 T_SENSOR_PATH=/sys/bus/w1/devices/XX-YYYYYYYYYYYY/w1_slave
 
-ANYPING_CONFIG=/usr/local/etc/anyping.conf
+ANYPING_CONFIG=/opt/tempbotd/anyping.conf
 
 # degrees [celsius]
 #ROOM_HOT_ALERT_THRESHOLD=35.0

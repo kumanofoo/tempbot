@@ -2,7 +2,7 @@
 Description=Temperature Bot
 
 [Service]
-ExecStart=/opt/tempbotd.py
+ExecStart=/opt/tempbotd/tempbotd.py
 EnvironmentFile=/etc/default/tempbot
 Restart=always
 Type=simple

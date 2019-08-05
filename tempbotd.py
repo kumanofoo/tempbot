@@ -24,8 +24,9 @@ import matplotlib.dates as mdates
 # global logging settings
 # log_level = logging.DEBUG
 # formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
-log_level = logging.INFO
-formatter = '%(message)s'
+# log_level = logging.INFO
+log_level = logging.WARNING
+formatter = '%(name)s: %(message)s'
 logging.basicConfig(level=log_level, format=formatter)
 
 # logger setting

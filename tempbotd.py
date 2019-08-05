@@ -62,7 +62,6 @@ COMMAND_WEATHER = "weather"
 
 # default parameters
 READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
-WEATHER_FETCH_INTERVAL = 30*60      # [sec]
 ROOM_HOT_ALERT_THRESHOLD = 35.0     # [degrees celsius]
 OUTSIDE_HOT_ALERT_THRESHOLD = 30.0  # [degrees celsius]
 PIPE_ALERT_THRESHOLD = -5.0         # [degrees celsius]
@@ -286,12 +285,15 @@ class OutsideTemperature():
         if now < (self.fetch_time + self.interval):
             return ""
 
+        log.debug("min=%d, max=%d" % (max, min))
         self.fetch_time = now
         self.wt.fetch()
         low, low_t = self.wt.lowest()
         high, high_t = self.wt.highest()
         low_t_str = low_t.strftime(self.datetime_format)
         high_t_str = high_t.strftime(self.datetime_format)
+        log.debug("log=%d, low_t=%s" % (low, low_t_str))
+        log.debug("high=%d, high_t=%s" % (high, high_t_str))
         mes = ""
         if low_t > now and low <= min:
             if mes != "":
@@ -314,6 +316,7 @@ class OutsideTemperature():
             mes += "You become butter...\n"
             mes += "A low of %.1f%s %s" % (low, self.degree, low_t_str)
 
+        log.debug("message: %s" % (mes))
         return mes
 
 
@@ -329,7 +332,6 @@ if __name__ == "__main__":
 
     try:
         forecast = OutsideTemperature()
-        WEATHER_FETCH_INTERVAL /= READ_WEBSOCKET_DELAY
     except Exception as e:
         log.error("Weather forecast: %s" % e)
         log.info("Disable outside temperature message")
@@ -346,7 +348,6 @@ if __name__ == "__main__":
         if tmpr == -100:
             log.info("without temperature sensor...")
 
-        forecast_timer = 1
         ping_timer = 1
         while True:
             try:
@@ -390,17 +391,14 @@ if __name__ == "__main__":
                                               as_user=True)
 
             if forecast:
-                forecast_timer -= 1
-                log.debug("do forecast: %d" % forecast_timer)
-                if forecast_timer <= 0:
-                    forecast_timer = WEATHER_FETCH_INTERVAL
-                    message = forecast.check_temperature(
-                        min=PIPE_ALERT_THRESHOLD,
-                        max=OUTSIDE_HOT_ALERT_THRESHOLD)
-                    if message:
-                        slack_client.api_call("chat.postMessage",
-                                              channel=CHANNEL_ID,
-                                              text=message,
-                                              as_user=True)
+                log.debug("do forecast")
+                message = forecast.check_temperature(
+                    min=PIPE_ALERT_THRESHOLD,
+                    max=OUTSIDE_HOT_ALERT_THRESHOLD)
+                if message:
+                    slack_client.api_call("chat.postMessage",
+                                          channel=CHANNEL_ID,
+                                          text=message,
+                                          as_user=True)
     else:
         log.critical("Connection failed. Invalid Slack token or bot ID?")

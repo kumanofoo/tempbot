@@ -60,9 +60,11 @@ class Servers():
             prop['alive'], prop['message'] = prop['server'].is_alive()
 
     def ping(self):
+        log.debug("ping()")
         messages = ''
         for server in self.servers.keys():
             alive, message = self.servers[server]['server'].is_alive()
+            log.debug("%s(%s): %s" % (server, alive, message))
             server_type = self.servers[server]['type']
             if alive:
                 if not self.servers[server]['alive']:
@@ -78,9 +80,11 @@ class Servers():
         return messages
 
     def get_status_of_servers(self):
+        log.debug("get_status_of_servers()")
         messages = ''
         for server in self.servers.keys():
             alive, message = self.servers[server]['server'].is_alive()
+            log.debug("%s(%s): %s" % (server, alive, message))
             server_type = self.servers[server]['type']
             if alive:
                 messages += "{0} ({1}) is up\n".format(server, server_type)

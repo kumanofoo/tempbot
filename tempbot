@@ -5,7 +5,11 @@ T_SENSOR_PATH=/sys/bus/w1/devices/XX-YYYYYYYYYYYY/w1_slave
 
 ANYPING_CONFIG=/opt/tempbotd/anyping.conf
 
+DARK_SKY_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# dark sky weather forecast place latitude:longitude
+MY_PLACE=xx.xxxxxxx:yyy.yyyyyyy
+
 # degrees [celsius]
 #ROOM_HOT_ALERT_THRESHOLD=35.0
-#OUTSIDE_HOT_ALERT_THRESHOLD=30.0  # <highest
-#PIPE_ALERT_THRESHOLD=-5.0 # >lowest
+#OUTSIDE_HOT_ALERT_THRESHOLD=30.0
+#PIPE_ALERT_THRESHOLD=-5.0

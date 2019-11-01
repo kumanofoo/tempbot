@@ -93,7 +93,7 @@ class Servers():
 
             self.servers[server]['message'] = message
 
-        log.debug("messages:", messages)
+        log.debug("messages: %s" % (messages))
         return messages
 
     def get_status_of_servers(self):

@@ -22,11 +22,18 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 # global logging settings
-# log_level = logging.DEBUG
-# formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
-# log_level = logging.INFO
-log_level = logging.WARNING
+log_level = logging.WARNING     # default debug level
 formatter = '%(name)s: %(message)s'
+
+TEMPBOT_DEBUG = os.environ.get("TEMPBOT_DEBUG")
+if TEMPBOT_DEBUG == 'info':
+    log_level = logging.INFO
+elif TEMPBOT_DEBUG == 'debug':
+    log_level = logging.DEBUG
+    formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
+else:
+    pass    # default debug level
+
 logging.basicConfig(level=log_level, format=formatter)
 
 # logger setting

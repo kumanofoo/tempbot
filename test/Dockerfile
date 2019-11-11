@@ -7,7 +7,9 @@ RUN apt-get update && \
       slackclient websocket-client
 
 WORKDIR /root/project
+ADD ./w1_slave /tmp/w1_slave
+
 RUN git clone https://github.com/kumanofoo/tempbot.git
-RUN cd ./tempbot && ./install.sh
+RUN cd ./tempbot && /bin/bash ./install.sh
 
 CMD ["python3", "/opt/tempbotd/tempbotd.py"]

@@ -44,6 +44,7 @@ class Weather:
             self.weather = json.loads(resp.text)
         else:
             log.error("Connection failure to %s" % url)
+            self.weather = ''
 
         # APIs https://darksky.net/dev/docs
         # timezone = weather['timezone']
@@ -51,6 +52,8 @@ class Weather:
     def lowest(self):
         if self.weather == '':
             self.fetch()
+        if self.weather == '':
+            return None, None
 
         low = self.weather['daily']['data'][0]['temperatureLow']
         lowTime = self.weather['daily']['data'][0]['temperatureLowTime']
@@ -61,6 +64,8 @@ class Weather:
     def highest(self):
         if self.weather == '':
             self.fetch()
+        if self.weather == '':
+            return None, None
 
         high = self.weather['daily']['data'][0]['temperatureHigh']
         highTime = self.weather['daily']['data'][0]['temperatureHighTime']
@@ -71,6 +76,8 @@ class Weather:
     def summary(self):
         if self.weather == '':
             self.fetch()
+        if self.weather == '':
+            return None
 
         summary = self.weather['daily']['summary']
         return summary
@@ -84,13 +91,12 @@ if __name__ == '__main__':
     print(text)
 
     high, highTime = w.highest()
-    print(
-        'highest temperature: ',
-        high,
-        highTime.strftime("at %I:%M %p on %A"))
+    print('highest temperature: ',
+          high, highTime.strftime("at %I:%M %p on %A"))
 
     low, lowTime = w.lowest()
-    print('lowest temperature: ', low, lowTime.strftime("at %I:%M %p on %A"))
+    print('lowest temperature: ',
+          low, lowTime.strftime("at %I:%M %p on %A"))
 
     if high > 35:
         print("so hot!!")

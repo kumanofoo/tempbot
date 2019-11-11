@@ -67,6 +67,7 @@ COMMAND_DATE = "date"
 COMMAND_PLOT = "plot"
 COMMAND_PING = "ping"
 COMMAND_WEATHER = "weather"
+COMMAND_TRAFFIC = "traffic"
 
 # default parameters
 READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
@@ -116,7 +117,7 @@ def get_temperature():
     try:
         with open(T_SENSOR_PATH) as f:
             data = f.read()
-            temp = int(data[data.index('t=')+2:])/1000
+            temp = int(data[data.index('t=')+2:])/1000.0
     except Exception as e:
         log.warning("get_temperature(): %s" % e)
 
@@ -154,7 +155,7 @@ def handle_command(command, channel, temperature, pingservers, forecast):
     if tmpr == -100:
         response = 'no sensor'
     else:
-        response = str(tmpr) + '°C'
+        response = '%.1f °C' % (tmpr)
 
     if command in COMMAND_CHAT:
         response = COMMAND_CHAT[command]
@@ -182,6 +183,14 @@ def handle_command(command, channel, temperature, pingservers, forecast):
             response = forecast.fetch_temperature()
         else:
             response = 'weather information is not available'
+    if command.startswith(COMMAND_TRAFFIC):
+        traffic_files = pingservers.save_icmp_results()
+        if traffic_files:
+            for file in traffic_files:
+                upload_file(file[0])
+            response = 'plotted %d graphs' % len(traffic_files)
+        else:
+            response = 'traffic is not available'
 
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)

@@ -6,6 +6,7 @@ import time
 
 import dnsping as dp
 import httping as hp
+import icmping as ip
 
 import logging
 log = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ class Servers():
     ping some servers
     """
     def __init__(self):
+        self.icmp_servers = []
+
         self.ANYPING_CONFIG = os.environ.get("ANYPING_CONFIG")
         if not self.ANYPING_CONFIG:
             raise AnypingError("no 'ANYPING_CONFIG' in environment variables")
@@ -54,6 +57,7 @@ class Servers():
         log.info('alert delay: {0:d} turn'.format(self.alert_delay))
 
         for server in self.servers.keys():
+            log.debug("server=%s" % server)
             prop = self.servers[server]
             if prop['type'] == 'DNS':
                 prop['server'] = dp.Server(server, prop['hostname'])
@@ -68,6 +72,50 @@ class Servers():
                 prop['alive'] = self.alert_delay
             else:
                 prop['alive'] = 0
+
+        if 'icmp_sample_count' in configuration:
+            icmp_sample_count = configuration['icmp_sample_count']
+        else:
+            icmp_sample_count = 20
+
+        if 'icmp_interval' in configuration:
+            icmp_interval = configuration['icmp_interval']
+        else:
+            icmp_interval = 120  # [sec]
+
+        if 'icmp_rotate' in configuration:
+            icmp_rotate = configuration['icmp_rotate']
+        else:
+            icmp_rotate = 48  # [h]
+
+        if 'icmp_hosts' in configuration:
+            icmp_hosts = configuration['icmp_hosts']
+        else:
+            icmp_hosts = None
+
+        if 'icmp_file_prefix' in configuration:
+            self.icmp_file_prefix = configuration['icmp_file_prefix']
+        else:
+            self.icmp_file_prefix = None
+
+        for host in icmp_hosts:
+            log.debug("icmp host=%s" % host)
+            try:
+                ips = ip.Server(host=host, sample_count=icmp_sample_count,
+                                interval=icmp_interval,
+                                rotate=icmp_rotate)
+            except Exception as e:
+                raise AnypingError(e)
+            else:
+                self.icmp_servers.append(ips)
+
+        for icmp_server in self.icmp_servers:
+            icmp_server.start()
+
+    def __del__(self):
+        if self.icmp_servers:
+            for server in self.icmp_servers:
+                server.finish()
 
     def ping(self):
         log.debug("ping()")
@@ -113,10 +161,32 @@ class Servers():
 
         return messages
 
+    def save_icmp_results(self):
+        log.debug("save_icmp_results()")
+        outfiles = []
+        if self.icmp_servers:
+            if self.icmp_file_prefix:
+                filename = "%s_all.png" % (self.icmp_file_prefix)
+                ip.save_results(self.icmp_servers, filename=filename)
+                outfiles.append((filename, "all"))
+                n = 0
+                for server in self.icmp_servers:
+                    filename = "%s_%d.png" % (self.icmp_file_prefix, n)
+                    server.save(filename=filename)
+                    outfiles.append((filename, server.host))
+                    n += 1
+            else:
+                log.warning("no icmp_file_prefix")
+        else:
+            log.warning("no icmp hosts")
+
+        return outfiles
+        log.debug("exit save_icmp_results()")
+
 
 def main():
     servers = Servers()
-    while True:
+    for i in range(3):
         time.sleep(servers.interval)
         messages = servers.get_status_of_servers()
         print("ping resonse: '{0}'".format(messages))
@@ -125,6 +195,16 @@ def main():
         if messages:
             print(messages)
 
+        out = servers.save_icmp_results()
+        print("save as:", out)
+
 
 if __name__ == '__main__':
+    """
+    for debug
+    """
+    log_level = logging.DEBUG
+    formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
+    logging.basicConfig(level=log_level, format=formatter)
+
     main()

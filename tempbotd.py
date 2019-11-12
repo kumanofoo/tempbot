@@ -124,10 +124,10 @@ def get_temperature():
     return temp
 
 
-def upload_file(file_path):
+def upload_file(file_path, title='temperature'):
     with open(file_path, 'rb') as f:
         param = {'token': os.environ.get('SLACK_BOT_TOKEN'),
-                 'channels': CHANNEL_ID, 'title': 'temperature'}
+                 'channels': CHANNEL_ID, 'title': title}
         r = requests.post("https://slack.com/api/files.upload",
                           params=param, files={'file': f})
         log.debug(r)
@@ -187,7 +187,7 @@ def handle_command(command, channel, temperature, pingservers, forecast):
         traffic_files = pingservers.save_icmp_results()
         if traffic_files:
             for file in traffic_files:
-                upload_file(file[0])
+                upload_file(file[0], title='ICMP Echo Reply Message')
             response = 'plotted %d graphs' % len(traffic_files)
         else:
             response = 'traffic is not available'

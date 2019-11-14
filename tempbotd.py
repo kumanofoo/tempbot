@@ -124,16 +124,16 @@ def get_temperature():
     return temp
 
 
-def upload_file(file_path, title='temperature'):
+def upload_file(file_path, title='temperature', channel=CHANNEL_ID):
     with open(file_path, 'rb') as f:
         param = {'token': os.environ.get('SLACK_BOT_TOKEN'),
-                 'channels': CHANNEL_ID, 'title': title}
+                 'channels': channel, 'title': title}
         r = requests.post("https://slack.com/api/files.upload",
                           params=param, files={'file': f})
         log.debug(r)
 
 
-def plot_temperature(time, data):
+def plot_temperature(time, data, channel=CHANNEL_ID):
     fig = plt.figure(figsize=(15, 4))
     ax = fig.add_subplot(1, 1, 1)
     ax.plot(time, data, c='#0000ff', alpha=0.7)
@@ -142,7 +142,7 @@ def plot_temperature(time, data):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     ax.grid()
     plt.savefig('/tmp/temp.png', transparent=False, bbox_inches='tight')
-    upload_file('/tmp/temp.png')
+    upload_file('/tmp/temp.png', channel=channel)
 
 
 def handle_command(command, channel, temperature, pingservers, forecast):
@@ -169,7 +169,7 @@ def handle_command(command, channel, temperature, pingservers, forecast):
     if command.startswith(COMMAND_PLOT):
         time, data = temperature.get_temp_time()
         if len(time) > 0:
-            plot_temperature(time, data)
+            plot_temperature(time, data, channel)
             response = 'plotted!'
         else:
             response = 'no data'
@@ -187,7 +187,7 @@ def handle_command(command, channel, temperature, pingservers, forecast):
         traffic_files = pingservers.save_icmp_results()
         if traffic_files:
             for file in traffic_files:
-                upload_file(file[0], title='ICMP Echo Reply Message')
+                upload_file(file[0], title='ICMP Echo Reply Message', channel=channel)
             response = 'plotted %d graphs' % len(traffic_files)
         else:
             response = 'traffic is not available'

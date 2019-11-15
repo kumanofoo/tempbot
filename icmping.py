@@ -85,7 +85,7 @@ class Server:
                 raise PingError(
                     "cannot ping to host '{0}'".format(self.host))
 
-            if len(self.results['datetime']) >= self.rotate:
+            if len(self.results['datetime']) > self.rotate:
                 self.results['min'].pop(0)
                 self.results['avg'].pop(0)
                 self.results['max'].pop(0)

@@ -1,7 +1,8 @@
 #!/bin/bash
 
 install -o root -g root -m 770 -D -d /opt/tempbotd
-install -o root -g root -m 640 anyping.py dnsping.py httping.py icmping.py weather.py /opt/tempbotd
+install -o root -g root -m 640 anyping.py dnsping.py httping.py /opt/tempbotd
+install -o root -g root -m 640 icmping.py weather.py eventlogger.py /opt/tempbotd
 install -o root -g root -m 750 tempbotd.py /opt/tempbotd
 
 if [ ! -f /opt/tempbotd/anyping.conf ]; then

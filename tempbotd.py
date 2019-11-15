@@ -15,11 +15,13 @@ import requests
 import logging
 import anyping as ap
 from weather import Weather
+from eventlogger import EventLogger
 
 import matplotlib
 matplotlib.use("Agg") # noqa
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+
 
 # global logging settings
 log_level = logging.WARNING     # default debug level
@@ -68,6 +70,7 @@ COMMAND_PLOT = "plot"
 COMMAND_PING = "ping"
 COMMAND_WEATHER = "weather"
 COMMAND_TRAFFIC = "traffic"
+COMMAND_LOG = "log"
 
 # default parameters
 READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
@@ -145,7 +148,8 @@ def plot_temperature(time, data, channel=CHANNEL_ID):
     upload_file('/tmp/temp.png', channel=channel)
 
 
-def handle_command(command, channel, temperature, pingservers, forecast):
+def handle_command(command, channel, temperature,
+                   pingservers, forecast, elog):
     """
         Receives commands directed at the bot and determins if they
         are valid commands. if so, then acts on the commands. if not,
@@ -187,10 +191,18 @@ def handle_command(command, channel, temperature, pingservers, forecast):
         traffic_files = pingservers.save_icmp_results()
         if traffic_files:
             for file in traffic_files:
-                upload_file(file[0], title='ICMP Echo Reply Message', channel=channel)
+                upload_file(file[0], title='ICMP Echo Reply Message',
+                            channel=channel)
             response = 'plotted %d graphs' % len(traffic_files)
         else:
             response = 'traffic is not available'
+    if command.startswith(COMMAND_LOG):
+        log_file = elog.save(filename="/tmp/elog.png")
+        if log_file:
+            upload_file(log_file, title='Event Log', channel=channel)
+            response = 'event log plotted!'
+        else:
+            response = 'no event log'
 
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)
@@ -340,6 +352,8 @@ class OutsideTemperature():
 if __name__ == "__main__":
     temperature = Temperature()
 
+    elog = EventLogger(buffer_size=64)
+
     try:
         pingservers = ap.Servers()
     except Exception as e:
@@ -371,26 +385,26 @@ if __name__ == "__main__":
                 command, channel = parse_slack_output(slack_client.rtm_read())
                 log.debug("got command(%s): %s" % (channel, command))
                 if command and channel:
+                    elog.log('command')
                     handle_command(command,
                                    channel,
                                    temperature,
                                    pingservers,
-                                   forecast)
+                                   forecast,
+                                   elog)
 
                 temperature.check_temperature()
                 time.sleep(READ_WEBSOCKET_DELAY)
             except websocket.WebSocketConnectionClosedException as e:
                 log.warning(e)
                 log.warning('Caught websocket disconnect, reconnecting...')
+                elog.log('disconnected')
                 time.sleep(READ_WEBSOCKET_DELAY)
                 while not slack_client.rtm_connect():
                     log.warning('Caught websocket disconnect, reconnecting...')
                     time.sleep(READ_WEBSOCKET_DELAY)
-                warning = "I'm back!"
-                slack_client.api_call("chat.postMessage",
-                                      channel=CHANNEL_ID,
-                                      text=warning,
-                                      as_user=True)
+                elog.log('connected')
+
             except Exception as e:
                 log.warning(e)
                 time.sleep(READ_WEBSOCKET_DELAY)
@@ -402,6 +416,7 @@ if __name__ == "__main__":
                     ping_timer = PING_INTERVAL_TIMER
                     message = pingservers.ping()
                     if message:
+                        elog.log('ping')
                         slack_client.api_call("chat.postMessage",
                                               channel=CHANNEL_ID,
                                               text=message,
@@ -413,6 +428,7 @@ if __name__ == "__main__":
                     min=PIPE_ALERT_THRESHOLD,
                     max=OUTSIDE_HOT_ALERT_THRESHOLD)
                 if message:
+                    elog.log('forecast')
                     slack_client.api_call("chat.postMessage",
                                           channel=CHANNEL_ID,
                                           text=message,

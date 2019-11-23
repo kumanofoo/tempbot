@@ -10,6 +10,7 @@ import os
 import time
 import datetime
 import websocket
+import slackclient
 from slackclient import SlackClient
 import requests
 import logging
@@ -373,7 +374,7 @@ if __name__ == "__main__":
     else:
         PING_INTERVAL_TIMER = -1
 
-    if slack_client.rtm_connect():
+    if slack_client.rtm_connect(with_team_state=False, auto_reconnect=True):
         log.info("Temperature Bot connected and running!")
         tmpr = get_temperature()
         if tmpr == -100:
@@ -395,17 +396,20 @@ if __name__ == "__main__":
 
                 temperature.check_temperature()
                 time.sleep(READ_WEBSOCKET_DELAY)
-            except websocket.WebSocketConnectionClosedException as e:
+            except (websocket.WebSocketConnectionClosedException,
+                    slackclient.server.SlackConnectionError) as e:
                 log.warning(e)
                 log.warning('Caught websocket disconnect, reconnecting...')
                 elog.log('disconnected')
                 time.sleep(READ_WEBSOCKET_DELAY)
-                while not slack_client.rtm_connect():
+                while not slack_client.rtm_connect(with_team_state=False,
+                                                   auto_reconnect=True):
                     log.warning('Caught websocket disconnect, reconnecting...')
                     time.sleep(READ_WEBSOCKET_DELAY)
                 elog.log('connected')
-
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 log.warning(e)
                 time.sleep(READ_WEBSOCKET_DELAY)
 

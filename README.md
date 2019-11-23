@@ -3,7 +3,7 @@
 
 ## Requirements
 ### python
-- slackclient
+- slackclient(=1.3.2)
 - websocket-client
 - dnspython
 - matplotlib
@@ -26,10 +26,15 @@
 ```ShellSession
 $ git clone https://github.com/kumanofoo/tempbot.git
 $ cd tempbot
-$ sudo ./install.sh
+$ sudo ./install.sh install
 $ sudo vi /etc/default/tempbot
 $ sudo vi /opt/tempbotd/anyping.conf
-$ sudo systemctl enable tempbotd
+$ sudo systemctl enable tempbotd    # automatically start on boot
+```
+
+If you want to uninstall tempbot, run install.sh with 'uninstall'.
+```ShellSession
+$ sudo ./install.sh uninstall
 ```
 
 ## Run tempbotd
@@ -44,10 +49,11 @@ $ sudo systemctl stop tempbotd
 $ sudo systemctl status tempbotd
 ```
 
-## Docker
+## Test on Docker
 ### Requirements
 - docker
 - test/test.env
+- anyping.conf (option)
 
 Copy tempbot to test/test.env
 ```Shellsession
@@ -80,10 +86,10 @@ MY_PLACE=35.3625:138.7306
 
 ### Run tempbotd.py
 ```Shellsession
-$ bash test/run.sh
+$ ./install.sh run
 ```
 
 ### Test
 ```Shellsession
-$ bash test/run.sh test
+$ ./install.sh test
 ```

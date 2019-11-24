@@ -32,9 +32,6 @@ install_tempbot() {
 
     cat <<EOF
 
-Install tempbotd as systemd service
-$ sudo systemctl daemon-reload
-
 Start tempbotd service
 $ sodo systemctl start tempbotd
 

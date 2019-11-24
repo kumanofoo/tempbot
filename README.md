@@ -26,15 +26,16 @@
 ```ShellSession
 $ git clone https://github.com/kumanofoo/tempbot.git
 $ cd tempbot
-$ sudo ./install.sh install
+$ sudo bash ./install.sh install
 $ sudo vi /etc/default/tempbot
+$ sudo cp /opt/tempbotd/anyping-sample.conf /opt/tempbotd/anyping.conf
 $ sudo vi /opt/tempbotd/anyping.conf
 $ sudo systemctl enable tempbotd    # automatically start on boot
 ```
 
 If you want to uninstall tempbot, run install.sh with 'uninstall'.
 ```ShellSession
-$ sudo ./install.sh uninstall
+$ sudo bash ./install.sh uninstall
 ```
 
 ## Run tempbotd
@@ -86,10 +87,10 @@ MY_PLACE=35.3625:138.7306
 
 ### Run tempbotd.py
 ```Shellsession
-$ ./install.sh run
+$ bash ./install.sh run
 ```
 
 ### Test
 ```Shellsession
-$ ./install.sh test
+$ bash ./install.sh test
 ```

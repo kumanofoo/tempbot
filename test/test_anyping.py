@@ -74,5 +74,16 @@ def test_anyping_save_icmp_results():
         assert file[0] == responses[file[1]]
 
 
+def test_anyping_save_icmp_fail():
+    os.environ['ANYPING_CONFIG'] = 'test/anyping-test.conf'
+
+    ap = anyping.Servers()
+    time.sleep(5)
+    files = ap.save_icmp_results()
+    ap = None
+
+    assert len(files) == 0
+
+
 if __name__ == '__main__':
     pytest.main(['-v', __file__])

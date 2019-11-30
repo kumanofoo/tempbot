@@ -85,6 +85,7 @@ initialize_docker() {
         docker cp anyping.conf ${docker_container}:/tmp/
         docker exec ${docker_container} /bin/bash -c 'cd /opt/tempbotd && cp /tmp/anyping.conf . && chmod 644 anyping.conf'
     fi
+    docker exec -d ${docker_container} python3 w1_slave.py
 
     # set signal handler
     trap "docker stop ${docker_container}" SIGINT SIGHUP

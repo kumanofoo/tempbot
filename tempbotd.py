@@ -138,15 +138,35 @@ def upload_file(file_path, title='temperature', channel=CHANNEL_ID):
 
 
 def plot_temperature(time, data, channel=CHANNEL_ID):
+    retval = False
+
+    if len(data) < 2:
+        log.info('skip temperature plot because there are too few data(%d)' %
+                 (len(data)))
+        return retval
+
+    temp_png = '/tmp/temp.png'
     fig = plt.figure(figsize=(15, 4))
     ax = fig.add_subplot(1, 1, 1)
     ax.plot(time, data, c='#0000ff', alpha=0.7)
     ax.set_title('temerature')
+    ax.set_xlim(time[0], time[-1])
     ax.set_ylim(0, 50)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     ax.grid()
-    plt.savefig('/tmp/temp.png', transparent=False, bbox_inches='tight')
-    upload_file('/tmp/temp.png', channel=channel)
+
+    ax.tick_params(left=False, bottom=False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    plt.savefig(temp_png, transparent=False, bbox_inches='tight')
+    plt.close(fig)
+    if os.path.isfile(temp_png):
+        upload_file(temp_png, channel=channel)
+        retval = True
+
+    return retval
 
 
 def handle_command(command, channel, temperature,
@@ -174,8 +194,10 @@ def handle_command(command, channel, temperature,
     if command.startswith(COMMAND_PLOT):
         time, data = temperature.get_temp_time()
         if len(time) > 0:
-            plot_temperature(time, data, channel)
-            response = 'plotted!'
+            if plot_temperature(time, data, channel):
+                response = 'plotted!'
+            else:
+                response = 'plot is not available'
         else:
             response = 'no data'
     if command.startswith(COMMAND_PING):
@@ -353,7 +375,7 @@ class OutsideTemperature():
 if __name__ == "__main__":
     temperature = Temperature()
 
-    elog = EventLogger(buffer_size=64)
+    elog = EventLogger(buffer_size=128)
 
     try:
         pingservers = ap.Servers()

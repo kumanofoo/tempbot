@@ -159,6 +159,7 @@ class Servers():
 
             self.servers[server]['message'] = message
 
+        log.debug("exit get_status_of_servers()")
         return messages
 
     def save_icmp_results(self):
@@ -167,21 +168,21 @@ class Servers():
         if self.icmp_servers:
             if self.icmp_file_prefix:
                 filename = "%s_all.png" % (self.icmp_file_prefix)
-                ip.save_results(self.icmp_servers, filename=filename)
-                outfiles.append((filename, "all"))
+                if ip.save_results(self.icmp_servers, filename=filename):
+                    outfiles.append((filename, "all"))
                 n = 0
                 for server in self.icmp_servers:
                     filename = "%s_%d.png" % (self.icmp_file_prefix, n)
-                    server.save(filename=filename)
-                    outfiles.append((filename, server.host))
+                    if server.save(filename=filename):
+                        outfiles.append((filename, server.host))
                     n += 1
             else:
                 log.warning("no icmp_file_prefix")
         else:
             log.warning("no icmp hosts")
 
-        return outfiles
         log.debug("exit save_icmp_results()")
+        return outfiles
 
 
 def main():

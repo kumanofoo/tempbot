@@ -60,6 +60,8 @@ class Server:
 
     def ping(self):
         log.debug("ping()")
+        error_count = 0
+        error_datetime = None
         while not self.thread_finish:
             t1 = datetime.today()
             log.debug("ping -c %d %s" % (self.count, self.host))
@@ -67,7 +69,7 @@ class Server:
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE)
             response, error = ping.communicate()
-            log.debug("ping.returncode=%d" % (ping.returncode))
+            log.debug("ping.returncode(%s)=%d" % (self.host, ping.returncode))
             if ping.returncode == 0:
                 stat = response.decode('utf-8').split("\n")[-2].split("/")
                 self.results['min'].append(float(stat[-4].split(" ")[-1]))
@@ -75,6 +77,8 @@ class Server:
                 self.results['max'].append(float(stat[-2]))
                 # self.results['stddev'].append(float(stat[-1].split(" ")[0]))
                 self.results['datetime'].append(datetime.today())
+                error_count = 0
+                error_datetime = None
             elif ping.returncode == 1:
                 self.results['min'].append(None)
                 self.results['avg'].append(None)
@@ -82,8 +86,21 @@ class Server:
                 # self.results['stddev'].append(None)
                 self.results['datetime'].append(datetime.today())
             else:
-                raise PingError(
-                    "cannot ping to host '{0}'".format(self.host))
+                self.results['min'].append(None)
+                self.results['avg'].append(None)
+                self.results['max'].append(None)
+                # self.results['stddev'].append(None)
+                self.results['datetime'].append(datetime.today())
+                if error_count == 0:
+                    today = datetime.today()
+                    error_datetime = today.strftime('%Y/%m/%d %H:%M:%S')
+                    log.warning("cannot ping to host '%s'" % (self.host))
+                    log.warning(error.decode('utf-8'))
+                elif error_count % 10 == 0:
+                    log.warning("cannot ping to host '%s' from %s" %
+                                (self.host, error_datetime))
+                    log.warning(error.decode('utf-8'))
+                error_count += 1
 
             if len(self.results['datetime']) > self.rotate:
                 self.results['min'].pop(0)
@@ -101,7 +118,7 @@ class Server:
         log.debug("exit ping()")
 
     def start(self):
-        log.debug("start()")
+        log.debug("start(%s)" % self.host)
         if self.thread:
             print("Thread is already running")
             return
@@ -112,7 +129,7 @@ class Server:
         log.debug("exit start()")
 
     def finish(self):
-        log.debug("finish()")
+        log.debug("finish(%s)" % self.host)
         if self.thread:
             self.thread_finish = True
             self.thread.join()
@@ -123,13 +140,20 @@ class Server:
 
     def save(self, filename="ping.png", linecolor='#0000ff'):
         log.debug("save(filename=%s, linecolor=%s)" % (filename, linecolor))
+        results_len = len([x for x in self.results['avg'] if x is not None])
+        if results_len < 2:
+            log.info('skip traffic plot because %s has too few data(%d)' %
+                     (self.host, results_len))
+            return None
+
         fig = plt.figure(figsize=(15, 4))
         ax = fig.add_subplot(1, 1, 1)
 
-        if len(self.results['datetime']) > 1:
-            ax.set_xlim(self.results['datetime'][0],
-                        self.results['datetime'][-1])
-        ax.set_ylim(0.0, int(max(self.results['max'])/100.0+0.9)*100.0)
+        ax.set_xlim(self.results['datetime'][0], self.results['datetime'][-1])
+        m = max(i for i in self.results['max'] if i is not None)
+        if float(m) < 10.0:
+            m = 10.0
+        ax.set_ylim(0.0, int(m/100.0+0.9)*100.0)
         ax.plot(self.results['datetime'], self.results['avg'],
                 c=linecolor, alpha=1.0)
         ax.plot(self.results['datetime'], self.results['min'],
@@ -149,6 +173,7 @@ class Server:
         plt.savefig(filename, transparent=False, bbox_inches='tight')
         plt.close(fig)
         log.debug("exit save()")
+        return filename
 
 
 def save_results(servers, filename="ping.png", title="ping"):
@@ -156,6 +181,8 @@ def save_results(servers, filename="ping.png", title="ping"):
               (servers, filename, title))
     color_map = ['#00a0e9', '#e4007f', '#009944', '#f39800', '#0068b7']
     current_color = 0
+    is_canvas_clean = True
+    outfile = None
 
     fig = plt.figure(figsize=(15, 4))
     ax = fig.add_subplot(1, 1, 1)
@@ -163,20 +190,29 @@ def save_results(servers, filename="ping.png", title="ping"):
     start_date = None
     end_date = None
     for server in servers:
+        results_len = len([x for x in server.results['avg'] if x is not None])
+        if results_len < 2:
+            log.info('skip traffic plot because %s has too few data(%d)' %
+                     (server.host, results_len))
+            continue
         if not start_date:
             start_date = server.results['datetime'][0]
         else:
-            if start_date < server.results['datetime'][0]:
+            if start_date > server.results['datetime'][0]:
                 start_date = server.results['datetime'][0]
 
         if not end_date:
             end_date = server.results['datetime'][-1]
         else:
-            if end_date > server.results['datetime'][-1]:
+            if end_date < server.results['datetime'][-1]:
                 end_date = server.results['datetime'][-1]
 
+    if start_date != end_date:
+        ax.set_xlim(start_date, end_date)
+    ax.set_ylim(0, 1000)
+
     for server in servers:
-        if len(server.results['datetime']) < 2:
+        if len([x for x in server.results['avg'] if x is not None]) < 2:
             continue
 
         c = color_map[current_color]
@@ -188,31 +224,34 @@ def save_results(servers, filename="ping.png", title="ping"):
                 c=c, alpha=0.4, linestyle='dotted')
 
         text_ypos = server.results['avg'][-1]
-        if not text_ypos:
-            text_ypos = '990.0'
+        if text_ypos is None:
+            text_ypos = 990.0
         ax.text(end_date, text_ypos, ' ' + server.host, color=c, va='center')
+
+        is_canvas_clean = False
 
         current_color += 1
         if current_color >= len(color_map):
             current_color = 0
 
-    if start_date != end_date:
-        ax.set_xlim(start_date, end_date)
-    ax.set_ylim(0, 1000)
+    if not is_canvas_clean:
 
-    ax.set_title(title)
-    ax.set_ylabel("ms")
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    ax.grid()
+        ax.set_title(title)
+        ax.set_ylabel("ms")
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.grid()
 
-    ax.tick_params(left=False, bottom=False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+        ax.tick_params(left=False, bottom=False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
-    plt.savefig(filename, transparent=False, bbox_inches='tight')
+        plt.savefig(filename, transparent=False, bbox_inches='tight')
+        outfile = filename
+
     plt.close(fig)
     log.debug("exit save_results()")
+    return outfile
 
 
 if __name__ == '__main__':

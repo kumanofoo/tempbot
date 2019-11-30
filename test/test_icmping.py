@@ -7,31 +7,71 @@ import icmping
 
 
 def test_icmping_save():
+    png1 = 'test/test_icmping_save1.png'
+    png2 = 'test/test_icmping_save2.png'
+    pngall = 'test/test_icmping_save_all.png'
+
     ping1 = icmping.Server(host='www.example.com', sample_count=3, interval=5)
     ping2 = icmping.Server(host='1.1.1.1', sample_count=3, interval=5)
     ping1.start()
     ping2.start()
     time.sleep(20)
 
-    if os.path.isfile('test/test_icmping_save1.png'):
-        os.remove('test/test_icmping_save1.png')
-    ping1.save(filename='test/test_icmping_save1.png')
+    if os.path.isfile(png1):
+        os.remove(png1)
+    outfile1 = ping1.save(filename=png1)
 
-    if os.path.isfile('test/test_icmping_save2.png'):
-        os.remove('test/test_icmping_save2.png')
-    ping2.save(filename='test/test_icmping_save2.png')
+    if os.path.isfile(png2):
+        os.remove(png2)
+    outfile2 = ping2.save(filename=png2)
 
-    if os.path.isfile('test/test_icmping_save_all.png'):
-        os.remove('test/test_icmping_save_all.png')
-    icmping.save_results([ping1, ping2],
-                         filename='test/test_icmping_save_all.png')
+    if os.path.isfile(pngall):
+        os.remove(pngall)
+    outfile_all = icmping.save_results([ping1, ping2], filename=pngall)
 
     ping1.finish()
     ping2.finish()
 
-    assert os.path.isfile('test/test_icmping_save1.png') is True
-    assert os.path.isfile('test/test_icmping_save2.png') is True
-    assert os.path.isfile('test/test_icmping_save_all.png') is True
+    assert outfile1 == png1
+    assert outfile2 == png2
+    assert outfile_all == pngall
+    assert os.path.isfile(png1) is True
+    assert os.path.isfile(png2) is True
+    assert os.path.isfile(pngall) is True
+
+
+def test_icmping_too_few_data():
+    png1 = 'test/test_icmping_save1.png'
+    png2 = 'test/test_icmping_save2.png'
+    pngall = 'test/test_icmping_save_all.png'
+
+    ping1 = icmping.Server(host='www.example.com', sample_count=3, interval=60)
+    ping2 = icmping.Server(host='1.1.1.1', sample_count=3, interval=60)
+    ping1.start()
+    ping2.start()
+    time.sleep(10)
+
+    if os.path.isfile(png1):
+        os.remove(png1)
+    outfile1 = ping1.save(filename=png1)
+
+    if os.path.isfile(png2):
+        os.remove(png2)
+    outfile2 = ping2.save(filename=png2)
+
+    if os.path.isfile(pngall):
+        os.remove(pngall)
+    outfile_all = icmping.save_results([ping1, ping2], filename=pngall)
+
+    ping1.finish()
+    ping2.finish()
+
+    assert outfile1 is None
+    assert outfile2 is None
+    assert outfile_all is None
+    assert os.path.isfile(png1) is False
+    assert os.path.isfile(png2) is False
+    assert os.path.isfile(pngall) is False
 
 
 def test_icmping_exception():

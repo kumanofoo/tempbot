@@ -109,6 +109,8 @@ COMMAND_CHAT = {
     "ok": "Google!",
     "hello": "World!",
     "do": "Sure...write some more code then i can do that!",
+    "help": "time date plot ping weather traffic log",
+    "?": "time date plot ping weather traffic log"
 }
 
 

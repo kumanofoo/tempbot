@@ -83,6 +83,10 @@ DARK_SKY_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # weather forecast place latitude:longitude
 MY_PLACE=35.3625:138.7306
+
+TZ=Asia/Tokyo
+PYTHONDONTWRITEBYTECODE=1
+TEMPBOT_DEBUG=debug
 ```
 
 ### Run tempbotd.py

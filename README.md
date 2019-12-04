@@ -1,5 +1,5 @@
 # tempbot
-[![reelase](https://img.shields.io/github/v/release/kumanofoo/tempbot)](https://github.com/kumanofoo/tempbot)
+[![reelase](https://img.shields.io/github/v/release/kumanofoo/tempbot)](https://github.com/kumanofoo/tempbot/releases)
 
 ## Requirements
 ### python

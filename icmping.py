@@ -120,7 +120,7 @@ class Server:
     def start(self):
         log.debug("start(%s)" % self.host)
         if self.thread:
-            print("Thread is already running")
+            log.warning("thread is already running")
             return
 
         self.thread = Thread(target=self.ping)

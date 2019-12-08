@@ -9,6 +9,9 @@ DARK_SKY_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # dark sky weather forecast place latitude:longitude
 MY_PLACE=xx.xxxxxxx:yyy.yyyyyyy
 
+CALIL_APPKEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+BOOK_CONFIG=/opt/tempbotd/book.conf
+
 # degrees [celsius]
 #ROOM_HOT_ALERT_THRESHOLD=35.0
 #OUTSIDE_HOT_ALERT_THRESHOLD=30.0

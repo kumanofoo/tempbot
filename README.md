@@ -8,6 +8,7 @@
 - dnspython
 - matplotlib
 - pytest
+- Beautiful Soup 4
 
 ### temperature sensor
 - DS18B20
@@ -21,6 +22,8 @@
 ### Dark Sky
 - Secret Key
 
+### calil
+- Appkey
 
 ## Installation
 ```ShellSession
@@ -30,6 +33,8 @@ $ sudo bash ./install.sh install
 $ sudo vi /etc/default/tempbot
 $ sudo cp /opt/tempbotd/anyping-sample.conf /opt/tempbotd/anyping.conf
 $ sudo vi /opt/tempbotd/anyping.conf
+$ sudo cp /opt/tempbotd/book-sample.conf /opt/tempbotd/book.conf
+$ sudo vi /etc/tempbotd/book.conf
 $ sudo systemctl enable tempbotd    # automatically start on boot
 ```
 
@@ -83,6 +88,11 @@ DARK_SKY_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # weather forecast place latitude:longitude
 MY_PLACE=35.3625:138.7306
+
+
+# your calil appkey
+CALIL_APPKEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 
 TZ=Asia/Tokyo
 PYTHONDONTWRITEBYTECODE=1

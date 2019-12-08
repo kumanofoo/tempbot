@@ -7,6 +7,7 @@ How to Build Your First Slack Bot With Python
 https://www.fullstackpython.com/blog/build-first-slack-bot-python.html
 """
 import os
+import re
 import time
 import datetime
 import websocket
@@ -17,6 +18,7 @@ import logging
 import anyping as ap
 from weather import Weather
 from eventlogger import EventLogger
+from book import BookStatus
 
 import matplotlib
 matplotlib.use("Agg") # noqa
@@ -48,6 +50,11 @@ if not BOT_ID:
     log.critical('no environment variable BOT_ID')
     exit(1)
 
+DM_CHANNEL = os.environ.get("DM_CHANNEL")
+if not DM_CHANNEL:
+    log.critical('no environment variable DM_CHANNEL')
+    exit(1)
+
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 if not CHANNEL_ID:
     log.critical('no environment variable CHANNEL_ID')
@@ -72,6 +79,7 @@ COMMAND_PING = "ping"
 COMMAND_WEATHER = "weather"
 COMMAND_TRAFFIC = "traffic"
 COMMAND_LOG = "log"
+COMMAND_BOOK = "book"
 
 # default parameters
 READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
@@ -172,7 +180,7 @@ def plot_temperature(time, data, channel=CHANNEL_ID):
 
 
 def handle_command(command, channel, temperature,
-                   pingservers, forecast, elog):
+                   pingservers, forecast, book, elog):
     """
         Receives commands directed at the bot and determins if they
         are valid commands. if so, then acts on the commands. if not,
@@ -228,6 +236,21 @@ def handle_command(command, channel, temperature,
             response = 'event log plotted!'
         else:
             response = 'no event log'
+    if command.startswith(COMMAND_BOOK):
+        if book:
+            cmd = command.strip()
+            cmd = re.split('[ 　]', cmd, 1)
+            if len(cmd) != 2:
+                response = 'book <title>'
+            else:
+                log.debug("command: %s, arg: %s", cmd[0], cmd[1])
+                if not book.searching and not book.book_status:
+                    book.search(cmd[1])
+                    response = '"%s"...' % cmd[1]
+                else:
+                    response = 'sorry, busy with searching the other book'
+        else:
+            response = 'book is not available'
 
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)
@@ -246,6 +269,10 @@ def parse_slack_output(slack_rtm_output):
                 # return text after the @ mention, whitespace removed
                 return output['text'].split(AT_BOT)[1].strip().lower(), \
                         output['channel']
+            if output and 'text' in output and DM_CHANNEL in output['channel']:
+                if 'bot_id' not in output:
+                    return output['text'], output['channel']
+
     return None, None
 
 
@@ -382,16 +409,23 @@ if __name__ == "__main__":
     try:
         pingservers = ap.Servers()
     except Exception as e:
-        log.error("Anyping: %s" % e)
+        log.warning("Anyping: %s" % e)
         log.info("Disable any pings")
         pingservers = None
 
     try:
         forecast = OutsideTemperature()
     except Exception as e:
-        log.error("Weather forecast: %s" % e)
+        log.warning("Weather forecast: %s" % e)
         log.info("Disable outside temperature message")
         forecast = None
+
+    try:
+        book = BookStatus()
+    except Exception as e:
+        log.warning("Book search: %s" % e)
+        log.info("Disable book search")
+        book = None
 
     if pingservers:
         PING_INTERVAL_TIMER = int(pingservers.interval/READ_WEBSOCKET_DELAY)
@@ -416,6 +450,7 @@ if __name__ == "__main__":
                                    temperature,
                                    pingservers,
                                    forecast,
+                                   book,
                                    elog)
 
                 temperature.check_temperature()
@@ -457,6 +492,16 @@ if __name__ == "__main__":
                     max=OUTSIDE_HOT_ALERT_THRESHOLD)
                 if message:
                     elog.log('forecast')
+                    slack_client.api_call("chat.postMessage",
+                                          channel=CHANNEL_ID,
+                                          text=message,
+                                          as_user=True)
+
+            if book:
+                log.debug("do book")
+                message = book.result_by_string()
+                if message:
+                    elog.log('book')
                     slack_client.api_call("chat.postMessage",
                                           channel=CHANNEL_ID,
                                           text=message,

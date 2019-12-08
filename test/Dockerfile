@@ -1,7 +1,7 @@
 FROM debian:buster
 RUN apt-get update && \
     apt-get install -y \
-      git python3 python3-pip python3-dnspython python3-matplotlib python3-pytest && \
+      git python3 python3-pip python3-dnspython python3-matplotlib python3-pytest python3-bs4 && \
     apt-get clean && \
     pip3 install \
       slackclient==1.3.2

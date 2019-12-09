@@ -92,6 +92,7 @@ MY_PLACE=35.3625:138.7306
 
 # your calil appkey
 CALIL_APPKEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+BOOK_CONFIG=/opt/tempbotd/book.conf
 
 
 TZ=Asia/Tokyo

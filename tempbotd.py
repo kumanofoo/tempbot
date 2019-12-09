@@ -50,11 +50,6 @@ if not BOT_ID:
     log.critical('no environment variable BOT_ID')
     exit(1)
 
-DM_CHANNEL = os.environ.get("DM_CHANNEL")
-if not DM_CHANNEL:
-    log.critical('no environment variable DM_CHANNEL')
-    exit(1)
-
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 if not CHANNEL_ID:
     log.critical('no environment variable CHANNEL_ID')
@@ -117,8 +112,8 @@ COMMAND_CHAT = {
     "ok": "Google!",
     "hello": "World!",
     "do": "Sure...write some more code then i can do that!",
-    "help": "time date plot ping weather traffic log",
-    "?": "time date plot ping weather traffic log"
+    "help": "book date log ping plot time  traffic weather",
+    "?": "book date log ping plot time  traffic weather",
 }
 
 
@@ -269,9 +264,6 @@ def parse_slack_output(slack_rtm_output):
                 # return text after the @ mention, whitespace removed
                 return output['text'].split(AT_BOT)[1].strip().lower(), \
                         output['channel']
-            if output and 'text' in output and DM_CHANNEL in output['channel']:
-                if 'bot_id' not in output:
-                    return output['text'], output['channel']
 
     return None, None
 

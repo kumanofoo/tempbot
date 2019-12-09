@@ -59,7 +59,7 @@ class Weather:
         lowTime = self.weather['daily']['data'][0]['temperatureLowTime']
         lowTimeStr = datetime.fromtimestamp(lowTime)
 
-        return low, lowTimeStr
+        return float(low), lowTimeStr
 
     def highest(self):
         if self.weather == '':
@@ -71,7 +71,7 @@ class Weather:
         highTime = self.weather['daily']['data'][0]['temperatureHighTime']
         highTimeStr = datetime.fromtimestamp(highTime)
 
-        return high, highTimeStr
+        return float(high), highTimeStr
 
     def summary(self):
         if self.weather == '':

@@ -19,6 +19,7 @@ import anyping as ap
 from weather import Weather
 from eventlogger import EventLogger
 from book import BookStatus
+from getip import GetIP
 
 import matplotlib
 matplotlib.use("Agg") # noqa
@@ -75,6 +76,7 @@ COMMAND_WEATHER = "weather"
 COMMAND_TRAFFIC = "traffic"
 COMMAND_LOG = "log"
 COMMAND_BOOK = "book"
+COMMAND_IP = "ip"
 
 # default parameters
 READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
@@ -112,8 +114,8 @@ COMMAND_CHAT = {
     "ok": "Google!",
     "hello": "World!",
     "do": "Sure...write some more code then i can do that!",
-    "help": "book date log ping plot time  traffic weather",
-    "?": "book date log ping plot time  traffic weather",
+    "help": "book date ip log ping plot time traffic weather",
+    "?": "book date ip log ping plot time traffic weather",
 }
 
 
@@ -122,7 +124,12 @@ slack_client = SlackClient(SLACK_BOT_TOKEN)
 
 
 def get_temperature():
-    temp = -100
+    temp = None
+
+    if not T_SENSOR_PATH:
+        log.warning("get_temperature(): no temperature sensor")
+        return temp
+
     try:
         with open(T_SENSOR_PATH) as f:
             data = f.read()
@@ -174,18 +181,17 @@ def plot_temperature(time, data, channel=CHANNEL_ID):
     return retval
 
 
-def handle_command(command, channel, temperature,
-                   pingservers, forecast, book, elog):
+def handle_command(command, channel):
     """
         Receives commands directed at the bot and determins if they
         are valid commands. if so, then acts on the commands. if not,
         returns back what it needs for clarification.
     """
     tmpr = get_temperature()
-    if tmpr == -100:
-        response = 'no sensor'
-    else:
+    if tmpr:
         response = '%.1f °C' % (tmpr)
+    else:
+        response = 'no sensor'
 
     if command in COMMAND_CHAT:
         response = COMMAND_CHAT[command]
@@ -246,6 +252,8 @@ def handle_command(command, channel, temperature,
                     response = 'sorry, busy with searching the other book'
         else:
             response = 'book is not available'
+    if command.startswith(COMMAND_IP):
+        response = ipaddress.current_ip
 
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)
@@ -268,6 +276,10 @@ def parse_slack_output(slack_rtm_output):
     return None, None
 
 
+class TemperatureError(Exception):
+    pass
+
+
 class Temperature:
     def __init__(self):
         self.delay = 15
@@ -277,6 +289,9 @@ class Temperature:
         self.pre_temp = get_temperature()
         self.temp_sum = 0
         self.temp_n = 0
+
+        if not self.pre_temp:
+            raise TemperatureError("temperature is not avaiable")
 
     def check_difference(self, cur_temp):
         self.delay = self.delay - 1
@@ -394,7 +409,12 @@ class OutsideTemperature():
 
 
 if __name__ == "__main__":
-    temperature = Temperature()
+    try:
+        temperature = Temperature()
+    except TemperatureError as e:
+        log.warning("Temperature: %s" % e)
+        log.info("Disable temperature")
+        temperature = None
 
     elog = EventLogger(buffer_size=128)
 
@@ -419,6 +439,14 @@ if __name__ == "__main__":
         log.info("Disable book search")
         book = None
 
+    try:
+        ipaddress = GetIP()
+        ipaddress.start_polling()
+    except Exception as e:
+        log.warning("Get IP address : %s" % e)
+        log.info("Disable IP address")
+        ipaddress = None
+
     if pingservers:
         PING_INTERVAL_TIMER = int(pingservers.interval/READ_WEBSOCKET_DELAY)
     else:
@@ -426,9 +454,6 @@ if __name__ == "__main__":
 
     if slack_client.rtm_connect(with_team_state=False, auto_reconnect=True):
         log.info("Temperature Bot connected and running!")
-        tmpr = get_temperature()
-        if tmpr == -100:
-            log.info("without temperature sensor...")
 
         ping_timer = 1
         while True:
@@ -437,15 +462,11 @@ if __name__ == "__main__":
                 log.debug("got command(%s): %s" % (channel, command))
                 if command and channel:
                     elog.log('command')
-                    handle_command(command,
-                                   channel,
-                                   temperature,
-                                   pingservers,
-                                   forecast,
-                                   book,
-                                   elog)
+                    handle_command(command, channel)
 
-                temperature.check_temperature()
+                if temperature:
+                    temperature.check_temperature()
+
                 time.sleep(READ_WEBSOCKET_DELAY)
             except (websocket.WebSocketConnectionClosedException,
                     slackclient.server.SlackConnectionError) as e:
@@ -498,5 +519,19 @@ if __name__ == "__main__":
                                           channel=CHANNEL_ID,
                                           text=message,
                                           as_user=True)
+
+            if ipaddress:
+                log.debug("do get ipaddress")
+                res = ipaddress.is_new()
+                if res:
+                    elog.log('ip')
+                    message = 'New IP address: %s' % ipaddress.current_ip
+                    slack_client.api_call("chat.postMessage",
+                                          channel=CHANNEL_ID,
+                                          text=message,
+                                          as_user=True)
     else:
         log.critical("Connection failed. Invalid Slack token or bot ID?")
+
+    if ipaddress:
+        ipaddress.finish_polling()

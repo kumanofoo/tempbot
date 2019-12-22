@@ -47,12 +47,21 @@ class BookStatus:
                     self.BOOK_CONFIG))
 
         try:
-            self.configuration = json.load(f)
+            conf = json.load(f)
         except Exception as e:
             log.warning(e)
             raise BookStatusError("cannot parse configuration")
 
+        self.configuration = conf.get('book', None)
+        if not self.configuration:
+            raise BookStatusError("'book' key not found in %s"
+                                  % self.BOOK_CONFIG)
+
         self.libraries = self.configuration.keys()
+        if len(self.libraries) == 0:
+            raise BookStatusError("library not found in %s"
+                                  % self.BOOK_CONFIG)
+        log.debug('libraries: %s' % self.libraries)
 
     def __del__(self):
         if self.thread:

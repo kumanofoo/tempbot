@@ -1,17 +1,17 @@
-FROM debian:buster
-RUN apt-get update && \
-    apt-get install -y \
-      git python3 python3-pip python3-dnspython python3-matplotlib python3-pytest python3-bs4 && \
-    apt-get clean && \
-    pip3 install \
-      slackclient==1.3.2
+FROM python:3-buster
+
+COPY ./requirements.txt /tmp
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+RUN pip3 install --no-cache-dir pytest pytest-mock
+
+# change openssl security level in buster
+COPY ./openssl.cnf /tmp
+RUN /bin/bash -c 'grep -F -s 10. /etc/debian_version > /dev/null && \
+                  cp /tmp/openssl.cnf /etc/ssl'
 
 WORKDIR /root/project
-ADD ./w1_slave /tmp/w1_slave
 
-RUN ["git", "clone", "https://github.com/kumanofoo/tempbot.git"]
+# pusedo temperature sensor
+COPY ./w1_slave.py /root/project
 
-WORKDIR /root/project/tempbot
-RUN ["/bin/bash", "./install.sh"]
-
-CMD ["python3", "/opt/tempbotd/tempbotd.py"]
+CMD ["/bin/bash"]

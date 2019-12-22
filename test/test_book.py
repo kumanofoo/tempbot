@@ -2,42 +2,91 @@
 
 import time
 import os
+import re
+import json
 import pytest
 import book
-import re
 
+
+os.environ['BOOK_CONFIG'] = 'book_config_dummy'
+os.environ['CALIL_APPKEY'] = 'calil_appkey_dummy'
 book_config = os.environ['BOOK_CONFIG']
 calil_appkey = os.environ['CALIL_APPKEY']
 
 
-def test_book_init_raise_no_appkey():
-    os.environ['BOOK_CONFIG'] = book_config
-    os.environ['CALIL_APPKEY'] = ''
-    with pytest.raises(book.BookStatusError):
+def requests_mock(*args, **kwargs):
+    prefix = 'test/test_book_response_mock/'
+    mockfiles = {
+        'Twiter': 'twiter-search.html',
+        'イマココ': 'imakoko-search.html'
+    }
+    time.sleep(1)
+
+    class MockResponse:
+        def __init__(self, text, status_code):
+            self.status_code = status_code
+            self.text = text
+
+        def json(self):
+            return json.loads(self.text)
+
+    if args[0].startswith('https://honto.jp/netstore/search.html'):
+        mockfile = mockfiles[kwargs['params']['k']]
+        try:
+            f = open(prefix + mockfile)
+        except IOError as e:
+            print(e)
+            raise(e)
+        return MockResponse(f.read(), 200)
+
+    if args[0].startswith('https://honto.jp/netstore/pd-book'):
+        mockfile = args[0].split('/')[-1]
+        try:
+            f = open(prefix + mockfile)
+        except IOError as e:
+            print(e)
+            raise(e)
+        return MockResponse(f.read(), 200)
+
+    if args[0].startswith('https://api.calil.jp/check'):
+        isbn = sorted(kwargs['params']['isbn'].split(','))[0]
+        mockfile = '%s.html' % (isbn)
+        try:
+            f = open(prefix + mockfile)
+        except IOError as e:
+            print(e)
+            raise(e)
+        return MockResponse(f.read(), 200)
+
+    return MockResponse('', 404)
+
+
+@pytest.mark.parametrize(('config', 'appkey', 'expected'), [
+    (book_config, '', "no 'CALIL_APPKEY' in environment variables"),
+    ('', calil_appkey, "no 'BOOK_CONFIG' in environment variables"),
+    ('test/book-test-xxx.conf', calil_appkey,
+     "cannot open configuration file "),
+    ('test/book-test-config-error.conf', calil_appkey,
+     "cannot parse configuration"),
+    ('test/book-test-no-book.conf', calil_appkey, "'book' key not found in"),
+])
+def test_book_init_raise_no_appkey(config, appkey, expected):
+    os.environ['BOOK_CONFIG'] = config
+    os.environ['CALIL_APPKEY'] = appkey
+    with pytest.raises(book.BookStatusError) as e:
         book.BookStatus()
+    assert str(e.value).startswith(expected)
 
 
-def test_book_init_raise_no_config():
-    os.environ['BOOK_CONFIG'] = ''
-    os.environ['CALIL_APPKEY'] = calil_appkey
-    with pytest.raises(book.BookStatusError):
-        book.BookStatus()
-
-
-def test_anyping_init_raise_config_syntax_error():
-    os.environ['BOOK_CONFIG'] = 'test/book-test-config-error.conf'
-    os.environ['CALIL_APPKEY'] = calil_appkey
-    with pytest.raises(book.BookStatusError):
-        book.BookStatus()
-
-
-@pytest.mark.parametrize("bk, expected", [
-    ('Twiter', r':.+:'),
+@pytest.mark.parametrize(('bk', 'expected'), [
+    ('Twiter', r':.+:'),  # not found
     ('イマココ',
      '.イマココ.\n\nイマココ 渡り鳥からグーグル・アースまで、空間認知の科学\n'
-     '- 東京都立図書館.中央.+\n- 国立国会図書館: 蔵書なし\n')
+     '(- 国立国会図書館: 蔵書なし\n- 東京都立図書館.中央.+\n|'
+     '- 東京都立図書館.中央.+\n- 国立国会図書館: 蔵書なし\n)')
 ])
-def test_book_search(bk, expected):
+def test_book_search(mocker, bk, expected):
+    mocker.patch('book.requests.get', side_effect=requests_mock)
     os.environ['BOOK_CONFIG'] = 'test/book-test.conf'
     os.environ['CALIL_APPKEY'] = calil_appkey
 
@@ -47,8 +96,13 @@ def test_book_search(bk, expected):
     result = bs.search(bk)
     assert result is False
 
-    while bs.searching:
+    timeout = True
+    for i in range(30):
+        if not bs.searching:
+            timeout = False
+            break
         time.sleep(2)
+    assert timeout is False
 
     status = bs.result_by_string()
     assert re.match(expected, status)

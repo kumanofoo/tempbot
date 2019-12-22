@@ -5,7 +5,7 @@ set -e
 tempbotd_dir="/opt/tempbotd"
 opt_tempbotd_module="anyping.py dnsping.py httping.py icmping.py"
 opt_tempbotd_module="${opt_tempbotd_module} weather.py eventlogger.py"
-opt_tempbotd_module="${opt_tempbotd_module} book.py"
+opt_tempbotd_module="${opt_tempbotd_module} book.py getip.py"
 
 docker_image="tempbot:test"
 docker_container="test_tempbot"
@@ -14,8 +14,7 @@ install_tempbot() {
     install -o root -g root -m 755 -D -d ${tempbotd_dir}
     install -o root -g root -m 644 ${opt_tempbotd_module} ${tempbotd_dir}
     install -o root -g root -m 755 tempbotd.py ${tempbotd_dir}
-    install -o root -g root -m 644 anyping-sample.conf ${tempbotd_dir}
-    install -o root -g root -m 644 book-sample.conf ${tempbotd_dir}
+    install -o root -g root -m 644 tempbot-sample.conf ${tempbotd_dir}
 
     if [ -f /etc/default/tempbot ]; then
         echo skip install /etc/default/tempbot
@@ -63,8 +62,8 @@ uninstall_tempbot() {
     rm /etc/default/tempbot
     cd ${tempbotd_dir} && rm -f ${opt_tempbotd_module} \
                              tempbotd.py \
-                             anyping-sample.conf \
-                             anyping.conf
+                             tempbot-sample.conf \
+                             tempbot.conf
     rmdir ${tempbotd_dir}
 }
 
@@ -74,7 +73,9 @@ initialize_docker() {
     tar zcf tmp/files.tar.gz $(git ls-files)
 
     # build docker image
-    (cd test; docker image build -t ${docker_image} -f Dockerfile.test .)
+    cp requirements.txt test
+    (cd test; docker image build -t ${docker_image} -f Dockerfile .)
+    rm test/requirements.txt
 
     # run docker container and install tempbot
     docker run -itd --rm --env-file=test/test.env --name ${docker_container} ${docker_image}
@@ -82,15 +83,10 @@ initialize_docker() {
     docker exec ${docker_container} /bin/bash \
            -c 'mkdir -p /root/project/tempbotd && tar zxf /tmp/files.tar.gz -C /root/project/tempbotd'
     docker exec ${docker_container} /bin/bash -c 'cd tempbotd && /bin/bash install.sh install'
-    docker exec ${docker_container} /bin/bash -c 'cd /opt/tempbotd && cp anyping-sample.conf anyping.conf'
-    if [ -f anyping.conf ]; then
-        docker cp anyping.conf ${docker_container}:/tmp/
-        docker exec ${docker_container} /bin/bash -c 'cd /opt/tempbotd && cp /tmp/anyping.conf . && chmod 644 anyping.conf'
-    fi
-    docker exec ${docker_container} /bin/bash -c 'cd /opt/tempbotd && cp book-sample.conf book.conf'
-    if [ -f book.conf ]; then
-        docker cp book.conf ${docker_container}:/tmp/
-        docker exec ${docker_container} /bin/bash -c 'cd /opt/tempbotd && cp /tmp/book.conf . && chmod 644 book.conf'
+    docker exec ${docker_container} /bin/bash -c 'cd /opt/tempbotd && cp tempbot-sample.conf tempbot.conf'
+    if [ -f tempbot.conf ]; then
+        docker cp tempbot.conf ${docker_container}:/tmp/
+        docker exec ${docker_container} /bin/bash -c 'cd /opt/tempbotd && cp /tmp/tempbot.conf . && chmod 644 tempbot.conf'
     fi
     docker exec -d ${docker_container} python3 w1_slave.py
 

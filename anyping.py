@@ -35,26 +35,32 @@ class Servers():
                     self.ANYPING_CONFIG))
 
         try:
-            configuration = json.load(f)
+            conf = json.load(f)
         except Exception:
             raise AnypingError("cannot parse configuration")
 
-        if 'ping_servers' in configuration:
-            self.servers = configuration['ping_servers']
-        else:
+        self.configuration = conf.get('anyping', None)
+        if not self.configuration:
+            raise AnypingError("'anyping' key not found in %s"
+                               % self.ANYPING_CONFIG)
+
+        self.servers = self.configuration.get('ping_servers', None)
+        if not self.servers:
             raise AnypingError("no 'ping_servers' in configuration file")
 
-        if 'ping_interval' in configuration:
-            self.interval = int(configuration['ping_interval'])
-        else:
-            self.interval = 60
-        log.info('ping interval: {0:d} sec'.format(self.interval))
+        self.interval = self.configuration.get('ping_interval', None)
+        if not self.interval:
+            raise AnypingError("'interval' not found")
+        if type(self.interval) is not int:
+            raise AnypingError("'interval' is not 'int'")
+        log.debug('interval: %d sec' % self.interval)
 
-        if 'alert_delay' in configuration:
-            self.alert_delay = int(configuration['alert_delay'])
-        else:
-            self.alert_delay = 1
-        log.info('alert delay: {0:d} turn'.format(self.alert_delay))
+        self.alert_delay = self.configuration.get('alert_delay', None)
+        if not self.alert_delay:
+            raise AnypingError("'alert_delay' not found")
+        if type(self.alert_delay) is not int:
+            raise AnypingError("'alert_delay' is not 'int'")
+        log.debug('alert_delay: %d times' % self.interval)
 
         for server in self.servers.keys():
             log.debug("server=%s" % server)
@@ -73,30 +79,27 @@ class Servers():
             else:
                 prop['alive'] = 0
 
-        if 'icmp_sample_count' in configuration:
-            icmp_sample_count = configuration['icmp_sample_count']
-        else:
-            icmp_sample_count = 20
+        icmp_sample_count = self.configuration.get('icmp_sample_count')
+        if not icmp_sample_count:
+            raise AnypingError("'icmp_sample_count' not found")
+        log.debug('icmp_sample_count: %d ' % icmp_sample_count)
 
-        if 'icmp_interval' in configuration:
-            icmp_interval = configuration['icmp_interval']
-        else:
-            icmp_interval = 120  # [sec]
+        icmp_interval = self.configuration.get('icmp_interval')  # [sec]
+        if not icmp_interval:
+            raise AnypingError("'icmp_interval' not found")
+        log.debug('icmp_interval: %d ' % icmp_interval)
 
-        if 'icmp_rotate' in configuration:
-            icmp_rotate = configuration['icmp_rotate']
-        else:
-            icmp_rotate = 48  # [h]
+        icmp_rotate = self.configuration.get('icmp_rotate')  # [h]
+        if not icmp_rotate:
+            raise AnypingError("'icmp_rotate' not found")
+        log.debug('icmp_rotate: %d ' % icmp_rotate)
 
-        if 'icmp_hosts' in configuration:
-            icmp_hosts = configuration['icmp_hosts']
-        else:
-            icmp_hosts = None
+        icmp_hosts = self.configuration.get('icmp_hosts', None)
+        log.debug('icmp_hosts: %s ' % icmp_hosts)
 
-        if 'icmp_file_prefix' in configuration:
-            self.icmp_file_prefix = configuration['icmp_file_prefix']
-        else:
-            self.icmp_file_prefix = None
+        self.icmp_file_prefix = self.configuration.get('icmp_file_prefix',
+                                                       None)
+        log.debug('icmp_file_prefix: %s ' % self.icmp_file_prefix)
 
         for host in icmp_hosts:
             log.debug("icmp host=%s" % host)

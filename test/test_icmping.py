@@ -4,9 +4,11 @@ import time
 import os
 import pytest
 import icmping
+import mocks
 
 
-def test_icmping_save():
+def test_icmping_save(mocker):
+    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
     png1 = 'test/test_icmping_save1.png'
     png2 = 'test/test_icmping_save2.png'
     pngall = 'test/test_icmping_save_all.png'
@@ -40,7 +42,8 @@ def test_icmping_save():
     assert os.path.isfile(pngall) is True
 
 
-def test_icmping_too_few_data():
+def test_icmping_too_few_data(mocker):
+    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
     png1 = 'test/test_icmping_save1.png'
     png2 = 'test/test_icmping_save2.png'
     pngall = 'test/test_icmping_save_all.png'
@@ -74,7 +77,8 @@ def test_icmping_too_few_data():
     assert os.path.isfile(pngall) is False
 
 
-def test_icmping_exception():
+def test_icmping_exception(mocker):
+    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
     with pytest.raises(icmping.PingError):
         icmping.Server(host='wwww.example.com')
 

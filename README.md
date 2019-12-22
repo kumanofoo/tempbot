@@ -7,8 +7,11 @@
 - websocket-client
 - dnspython
 - matplotlib
-- pytest
 - Beautiful Soup 4
+
+### test
+- pytest
+- pytest-mock
 
 ### temperature sensor
 - DS18B20
@@ -31,10 +34,8 @@ $ git clone https://github.com/kumanofoo/tempbot.git
 $ cd tempbot
 $ sudo bash ./install.sh install
 $ sudo vi /etc/default/tempbot
-$ sudo cp /opt/tempbotd/anyping-sample.conf /opt/tempbotd/anyping.conf
-$ sudo vi /opt/tempbotd/anyping.conf
-$ sudo cp /opt/tempbotd/book-sample.conf /opt/tempbotd/book.conf
-$ sudo vi /etc/tempbotd/book.conf
+$ sudo cp /opt/tempbotd/tempbot-sample.conf /opt/tempbotd/tempbot.conf
+$ sudo vi /opt/tempbotd/tempbot.conf
 $ sudo systemctl enable tempbotd    # automatically start on boot
 ```
 

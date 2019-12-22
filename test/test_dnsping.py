@@ -2,14 +2,17 @@
 
 import pytest
 import dnsping
+import mocks
 
 
-@pytest.mark.parametrize("nameserver, hostname, expected", [
+@pytest.mark.parametrize(('nameserver', 'hostname', 'expected'), [
     ('8.8.8.8', 'www.example.com', (True, '93.184.216.34')),
     ('8.8.8.8', 'www.example.co.jp', (False, 'Hostname does not exist')),
-    ('93.184.216.34', 'www.example.com', (False, 'Request Timeout')),
+    ('93.184.216.34', 'www.google.com', (False, 'Request Timeout')),
 ])
-def test_dnsping_is_alive(nameserver, hostname, expected):
+def test_dnsping_is_alive(mocker, nameserver, hostname, expected):
+    mocker.patch('dnsping.dns.resolver.Resolver.query',
+                 side_effect=mocks.query_mock)
     assert expected == dnsping.Server(nameserver=nameserver,
                                       hostname=hostname).is_alive()
 

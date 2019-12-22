@@ -1,5 +1,6 @@
 # tempbot
 [![reelase](https://img.shields.io/github/v/release/kumanofoo/tempbot)](https://github.com/kumanofoo/tempbot/releases)
+[![CircleCI](https://circleci.com/gh/kumanofoo/tempbot.svg?style=shield)](https://circleci.com/gh/kumanofoo/tempbot)
 
 ## Requirements
 ### python

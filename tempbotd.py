@@ -187,9 +187,12 @@ def handle_command(command, channel):
         are valid commands. if so, then acts on the commands. if not,
         returns back what it needs for clarification.
     """
-    tmpr = get_temperature()
-    if tmpr:
-        response = '%.1f °C' % (tmpr)
+    if temperature:
+        tmpr = get_temperature()
+        if tmpr:
+            response = '%.1f °C' % (tmpr)
+        else:
+            response = 'no sensor'
     else:
         response = 'no sensor'
 
@@ -203,14 +206,17 @@ def handle_command(command, channel):
         d = datetime.datetime.today()
         response = d.strftime("%Y-%m-%d")
     if command.startswith(COMMAND_PLOT):
-        time, data = temperature.get_temp_time()
-        if len(time) > 0:
-            if plot_temperature(time, data, channel):
-                response = 'plotted!'
+        if temperature:
+            time, data = temperature.get_temp_time()
+            if len(time) > 0:
+                if plot_temperature(time, data, channel):
+                    response = 'plotted!'
+                else:
+                    response = 'plot is not available'
             else:
-                response = 'plot is not available'
+                response = 'no data'
         else:
-            response = 'no data'
+            response = 'temperature is not available'
     if command.startswith(COMMAND_PING):
         if pingservers:
             response = pingservers.get_status_of_servers()

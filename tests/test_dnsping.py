@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import pytest
-import dnsping
+import tempbotlib.dnsping as dnsping
 import mocks
 
 
@@ -11,7 +11,7 @@ import mocks
     ('93.184.216.34', 'www.google.com', (False, 'Request Timeout')),
 ])
 def test_dnsping_is_alive(mocker, nameserver, hostname, expected):
-    mocker.patch('dnsping.dns.resolver.Resolver.query',
+    mocker.patch('tempbotlib.dnsping.dns.resolver.Resolver.query',
                  side_effect=mocks.query_mock)
     assert expected == dnsping.Server(nameserver=nameserver,
                                       hostname=hostname).is_alive()

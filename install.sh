@@ -5,14 +5,14 @@ set -e
 tempbotd_dir="/opt/tempbotd"
 opt_tempbotd_module="anyping.py dnsping.py httping.py icmping.py"
 opt_tempbotd_module="${opt_tempbotd_module} weather.py eventlogger.py"
-opt_tempbotd_module="${opt_tempbotd_module} book.py getip.py"
+opt_tempbotd_module="${opt_tempbotd_module} book.py getip.py temperature.py"
 
 docker_image="tempbot:test"
 docker_container="test_tempbot"
 
 install_tempbot() {
-    install -o root -g root -m 755 -D -d ${tempbotd_dir}
-    install -o root -g root -m 644 ${opt_tempbotd_module} ${tempbotd_dir}
+    install -o root -g root -m 755 -D -d ${tempbotd_dir}/tempbotlib
+    install -o root -g root -m 644 tempbotlib/* ${tempbotd_dir}/tempbotlib
     install -o root -g root -m 755 tempbotd.py ${tempbotd_dir}
     install -o root -g root -m 644 tempbot-sample.conf ${tempbotd_dir}
 
@@ -73,12 +73,12 @@ initialize_docker() {
     tar zcf tmp/files.tar.gz $(git ls-files)
 
     # build docker image
-    cp requirements.txt test
-    (cd test; docker image build -t ${docker_image} -f Dockerfile .)
-    rm test/requirements.txt
+    cp requirements.txt tests
+    (cd tests; docker image build -t ${docker_image} -f Dockerfile .)
+    rm tests/requirements.txt
 
     # run docker container and install tempbot
-    docker run -itd --rm --env-file=test/test.env --name ${docker_container} ${docker_image}
+    docker run -itd --rm --env-file=tests/test.env --name ${docker_container} ${docker_image}
     docker cp tmp/files.tar.gz ${docker_container}:/tmp/
     docker exec ${docker_container} /bin/bash \
            -c 'mkdir -p /root/project/tempbotd && tar zxf /tmp/files.tar.gz -C /root/project/tempbotd'
@@ -97,7 +97,7 @@ initialize_docker() {
 test_on_docker() {
     initialize_docker
     # run test
-    docker exec ${docker_container} /bin/bash -c 'cd tempbotd && python3 -m pytest test'
+    docker exec ${docker_container} /bin/bash -c 'cd tempbotd && python3 -m pytest --cov=tempbotlib tests'
     stop_docker
 }
 

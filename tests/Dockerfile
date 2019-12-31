@@ -2,7 +2,7 @@ FROM python:3-buster
 
 COPY ./requirements.txt /tmp
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
-RUN pip3 install --no-cache-dir pytest pytest-mock
+RUN pip3 install --no-cache-dir pytest pytest-mock pytest-cov
 
 # change openssl security level in buster
 COPY ./openssl.cnf /tmp

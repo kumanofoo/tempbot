@@ -1,5 +1,4 @@
-#! /usr/bin/env python3
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 """
 Full Stack Python
@@ -10,22 +9,13 @@ import os
 import re
 import time
 import datetime
+import queue
 import websocket
 import slackclient
 from slackclient import SlackClient
 import requests
 import logging
-import anyping as ap
-from weather import Weather
-from eventlogger import EventLogger
-from book import BookStatus
-from getip import GetIP
-
-import matplotlib
-matplotlib.use("Agg") # noqa
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-
+import tempbotlib as tbd
 
 # global logging settings
 log_level = logging.WARNING     # default debug level
@@ -61,11 +51,6 @@ if not SLACK_BOT_TOKEN:
     log.critical('no environment variable SLACK_BOT_TOKEN')
     exit(1)
 
-T_SENSOR_PATH = os.environ.get("T_SENSOR_PATH")
-if not T_SENSOR_PATH:
-    log.warning('no environment variable T_SENSOR_PATH')
-
-
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
 COMMAND_TIME = "time"
@@ -80,33 +65,6 @@ COMMAND_IP = "ip"
 
 # default parameters
 READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
-ROOM_HOT_ALERT_THRESHOLD = 35.0     # [degrees celsius]
-OUTSIDE_HOT_ALERT_THRESHOLD = 30.0  # [degrees celsius]
-PIPE_ALERT_THRESHOLD = -5.0         # [degrees celsius]
-
-if os.environ.get("ROOM_HOT_ALERT_THRESHOLD"):
-    try:
-        ROOM_HOT_ALERT_THRESHOLD = float(
-            os.environ.get("ROOM_HOT_ALERT_THRESHOLD"))
-    except Exception as e:
-        log.warning(str(e))
-log.debug("ROOM_HOT_ALERT_THRESHOLD: %.1f" % ROOM_HOT_ALERT_THRESHOLD)
-
-if os.environ.get("OUTSIDE_HOT_ALERT_THRESHOLD"):
-    try:
-        OUTSIDE_HOT_ALERT_THRESHOLD = float(
-            os.environ.get("OUTSIDE_HOT_ALERT_THRESHOLD"))
-    except Exception as e:
-        log.warning(str(e))
-log.debug("OUTSIDE_HOT_ALERT_THRESHOLD: %.1f" % OUTSIDE_HOT_ALERT_THRESHOLD)
-
-if os.environ.get("PIPE_ALERT_THRESHOLD"):
-    try:
-        PIPE_ALERT_THRESHOLD = float(os.environ.get("PIPE_ALERT_THRESHOLD"))
-    except Exception as e:
-        log.warning(str(e))
-log.debug("PIPE_ALERT_THRESHOLD: %.1f" % PIPE_ALERT_THRESHOLD)
-
 
 # command list
 COMMAND_CHAT = {
@@ -123,23 +81,6 @@ COMMAND_CHAT = {
 slack_client = SlackClient(SLACK_BOT_TOKEN)
 
 
-def get_temperature():
-    temp = None
-
-    if not T_SENSOR_PATH:
-        log.warning("get_temperature(): no temperature sensor")
-        return temp
-
-    try:
-        with open(T_SENSOR_PATH) as f:
-            data = f.read()
-            temp = int(data[data.index('t=')+2:])/1000.0
-    except Exception as e:
-        log.warning("get_temperature(): %s" % e)
-
-    return temp
-
-
 def upload_file(file_path, title='temperature', channel=CHANNEL_ID):
     with open(file_path, 'rb') as f:
         param = {'token': os.environ.get('SLACK_BOT_TOKEN'),
@@ -149,38 +90,6 @@ def upload_file(file_path, title='temperature', channel=CHANNEL_ID):
         log.debug(r)
 
 
-def plot_temperature(time, data, channel=CHANNEL_ID):
-    retval = False
-
-    if len(data) < 2:
-        log.info('skip temperature plot because there are too few data(%d)' %
-                 (len(data)))
-        return retval
-
-    temp_png = '/tmp/temp.png'
-    fig = plt.figure(figsize=(15, 4))
-    ax = fig.add_subplot(1, 1, 1)
-    ax.plot(time, data, c='#0000ff', alpha=0.7)
-    ax.set_title('temerature')
-    ax.set_xlim(time[0], time[-1])
-    ax.set_ylim(0, 50)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    ax.grid()
-
-    ax.tick_params(left=False, bottom=False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    plt.savefig(temp_png, transparent=False, bbox_inches='tight')
-    plt.close(fig)
-    if os.path.isfile(temp_png):
-        upload_file(temp_png, channel=channel)
-        retval = True
-
-    return retval
-
-
 def handle_command(command, channel):
     """
         Receives commands directed at the bot and determins if they
@@ -188,7 +97,7 @@ def handle_command(command, channel):
         returns back what it needs for clarification.
     """
     if temperature:
-        tmpr = get_temperature()
+        tmpr = temperature.get_temperature()
         if tmpr:
             response = '%.1f °C' % (tmpr)
         else:
@@ -208,8 +117,11 @@ def handle_command(command, channel):
     if command.startswith(COMMAND_PLOT):
         if temperature:
             time, data = temperature.get_temp_time()
-            if len(time) > 0:
-                if plot_temperature(time, data, channel):
+            if len(time) > 2:
+                pngfile = tbd.temperature.plot_temperature(
+                    time, data, pngfile='/tmp/temp.png')
+                if pngfile:
+                    upload_file(pngfile, title='Temperature')
                     response = 'plotted!'
                 else:
                     response = 'plot is not available'
@@ -251,7 +163,7 @@ def handle_command(command, channel):
                 response = 'book <title>'
             else:
                 log.debug("command: %s, arg: %s", cmd[0], cmd[1])
-                if not book.searching and not book.book_status:
+                if not book.searching:
                     book.search(cmd[1])
                     response = '"%s"...' % cmd[1]
                 else:
@@ -282,173 +194,44 @@ def parse_slack_output(slack_rtm_output):
     return None, None
 
 
-class TemperatureError(Exception):
-    pass
-
-
-class Temperature:
-    def __init__(self):
-        self.delay = 15
-        self.is_hot = False
-        self.tempdata = []
-        self.timedata = []
-        self.pre_temp = get_temperature()
-        self.temp_sum = 0
-        self.temp_n = 0
-
-        if not self.pre_temp:
-            raise TemperatureError("temperature is not avaiable")
-
-    def check_difference(self, cur_temp):
-        self.delay = self.delay - 1
-        if self.delay == 0:
-            self.delay = 15
-            diff = self.pre_temp - cur_temp
-            self.pre_temp = cur_temp
-            if diff*diff > 4:
-                response = str(cur_temp) + '°C'
-                slack_client.api_call("chat.postMessage",
-                                      channel=CHANNEL_ID,
-                                      text=response,
-                                      as_user=True)
-
-    def check_overheating(self, cur_temp):
-        if cur_temp > ROOM_HOT_ALERT_THRESHOLD:
-            if not self.is_hot:
-                log.info("Overheating!!!")
-                warning = "_Overheating!!! (" + str(cur_temp) + "°C)_"
-                slack_client.api_call("chat.postMessage",
-                                      channel=CHANNEL_ID,
-                                      text=warning,
-                                      as_user=True)
-                self.is_hot = True
-        else:
-            if self.is_hot and cur_temp < ROOM_HOT_ALERT_THRESHOLD:
-                log.info("It's cool!")
-                warning = "It's cool! (" + str(cur_temp) + "°C)"
-                slack_client.api_call("chat.postMessage",
-                                      channel=CHANNEL_ID,
-                                      text=warning,
-                                      as_user=True)
-                self.is_hot = False
-
-    def check_temperature(self):
-        temp = get_temperature()
-        self.check_difference(temp)
-        self.check_overheating(temp)
-
-        self.temp_sum += temp
-        self.temp_n += 1
-        if self.temp_n == 30:
-            if len(self.tempdata) > 60*24:
-                self.tempdata.pop(0)
-            self.tempdata.append(self.temp_sum/self.temp_n)
-            if len(self.timedata) > 60*24:
-                self.timedata.pop(0)
-            self.timedata.append(datetime.datetime.today())
-
-            self.temp_sum = 0
-            self.temp_n = 0
-
-    def get_temp_time(self):
-        return self.timedata, self.tempdata
-
-
-class OutsideTemperature():
-    def __init__(self, interval=4):
-        self.wt = Weather()
-        self.datetime_format = 'at %I:%M %p on %A'
-        self.degree = '°C'
-        self.interval = datetime.timedelta(hours=interval)
-        self.fetch_time = datetime.datetime.now() - self.interval
-
-    def fetch_temperature(self):
-        self.wt.fetch()
-        low, low_t = self.wt.lowest()
-        high, high_t = self.wt.highest()
-        low_t_str = low_t.strftime(self.datetime_format)
-        high_t_str = high_t.strftime(self.datetime_format)
-
-        mes = "A low of %.1f%s %s\n" % (low, self.degree, low_t_str)
-        mes += "A high of %.1f%s %s" % (high, self.degree, high_t_str)
-
-        return mes
-
-    def check_temperature(self, min=-5.0, max=30.0):
-        now = datetime.datetime.now()
-        if now < (self.fetch_time + self.interval):
-            return ""
-
-        log.debug("min=%d, max=%d" % (max, min))
-        self.fetch_time = now
-        self.wt.fetch()
-        low, low_t = self.wt.lowest()
-        high, high_t = self.wt.highest()
-        low_t_str = low_t.strftime(self.datetime_format)
-        high_t_str = high_t.strftime(self.datetime_format)
-        log.debug("log=%d, low_t=%s" % (low, low_t_str))
-        log.debug("high=%d, high_t=%s" % (high, high_t_str))
-        mes = ""
-        if low_t > now and low <= min:
-            if mes != "":
-                mes += "\n"
-            mes += "keep your pipes!!\n"
-            mes += "A low of %.1f%s %s" % (low, self.degree, low_t_str)
-        if high_t > now and high < 0:
-            if mes != "":
-                mes += "\n"
-            mes += "It will be too cold!!\n"
-            mes += "A high of %.1f%s %s" % (high, self.degree, high_t_str)
-        if high_t > now and high > max:
-            if mes != "":
-                mes += "\n"
-            mes += "It will be too hot!!\n"
-            mes += "A high of %.1f%s %s" % (high, self.degree, high_t_str)
-        if low_t > now and low > max:
-            if mes != "":
-                mes += "\n"
-            mes += "You become butter...\n"
-            mes += "A low of %.1f%s %s" % (low, self.degree, low_t_str)
-
-        log.debug("message: %s" % (mes))
-        return mes
-
-
 if __name__ == "__main__":
+    messages = queue.Queue()
+
     try:
-        temperature = Temperature()
-    except TemperatureError as e:
+        temperature = tbd.temperature.Temperature(messages)
+        temperature.start_polling()
+    except tbd.temperature.TemperatureError as e:
         log.warning("Temperature: %s" % e)
         log.info("Disable temperature")
         temperature = None
 
-    elog = EventLogger(buffer_size=128)
+    elog = tbd.eventlogger.EventLogger(buffer_size=128)
 
     try:
-        pingservers = ap.Servers()
-    except Exception as e:
+        pingservers = tbd.anyping.Servers()
+    except tbd.anyping.AnypingError as e:
         log.warning("Anyping: %s" % e)
         log.info("Disable any pings")
         pingservers = None
 
     try:
-        forecast = OutsideTemperature()
-    except Exception as e:
+        forecast = tbd.temperature.OutsideTemperature()
+    except tbd.temperature.TemperatureError as e:
         log.warning("Weather forecast: %s" % e)
         log.info("Disable outside temperature message")
         forecast = None
 
     try:
-        book = BookStatus()
-    except Exception as e:
+        book = tbd.book.BookStatus(messages)
+    except tbd.book.BookStatusError as e:
         log.warning("Book search: %s" % e)
         log.info("Disable book search")
         book = None
 
     try:
-        ipaddress = GetIP()
+        ipaddress = tbd.getip.GetIP()
         ipaddress.start_polling()
-    except Exception as e:
+    except tbd.getip.GetIPError as e:
         log.warning("Get IP address : %s" % e)
         log.info("Disable IP address")
         ipaddress = None
@@ -470,9 +253,6 @@ if __name__ == "__main__":
                     elog.log('command')
                     handle_command(command, channel)
 
-                if temperature:
-                    temperature.check_temperature()
-
                 time.sleep(READ_WEBSOCKET_DELAY)
             except (websocket.WebSocketConnectionClosedException,
                     slackclient.server.SlackConnectionError) as e:
@@ -491,6 +271,12 @@ if __name__ == "__main__":
                 log.warning(e)
                 time.sleep(READ_WEBSOCKET_DELAY)
 
+            while not messages.empty():
+                slack_client.api_call("chat.postMessage",
+                                      channel=CHANNEL_ID,
+                                      text=messages.get(),
+                                      as_user=True)
+
             if pingservers:
                 ping_timer -= 1
                 log.debug("do anyping: %d" % ping_timer)
@@ -506,21 +292,9 @@ if __name__ == "__main__":
 
             if forecast:
                 log.debug("do forecast")
-                message = forecast.check_temperature(
-                    min=PIPE_ALERT_THRESHOLD,
-                    max=OUTSIDE_HOT_ALERT_THRESHOLD)
+                message = forecast.check_temperature()
                 if message:
                     elog.log('forecast')
-                    slack_client.api_call("chat.postMessage",
-                                          channel=CHANNEL_ID,
-                                          text=message,
-                                          as_user=True)
-
-            if book:
-                log.debug("do book")
-                message = book.result_by_string()
-                if message:
-                    elog.log('book')
                     slack_client.api_call("chat.postMessage",
                                           channel=CHANNEL_ID,
                                           text=message,
@@ -541,3 +315,5 @@ if __name__ == "__main__":
 
     if ipaddress:
         ipaddress.finish_polling()
+    if temperature:
+        temperature.finish_polling()

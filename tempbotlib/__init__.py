@@ -1,0 +1,9 @@
+import tempbotlib.anyping
+import tempbotlib.book
+import tempbotlib.dnsping
+import tempbotlib.eventlogger
+import tempbotlib.getip
+import tempbotlib.httping
+import tempbotlib.icmping
+import tempbotlib.temperature
+import tempbotlib.weather

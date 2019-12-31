@@ -2,8 +2,8 @@
 
 import pytest
 import os
-import weather
 import datetime
+import tempbotlib.weather as weather
 
 
 def requests_mock(*args, **kwargs):
@@ -13,7 +13,7 @@ def requests_mock(*args, **kwargs):
             self.text = text
 
     try:
-        f = open('test/test_weather_response_mock.txt')
+        f = open('tests/test_weather_response_mock.txt')
     except IOError as e:
         print(e)
         raise(e)
@@ -36,7 +36,7 @@ def test_weather_init_raise_dark_sky_key():
 
 
 def test_weather_lowest(mocker):
-    mocker.patch('weather.requests.get', side_effect=requests_mock)
+    mocker.patch('tempbotlib.weather.requests.get', side_effect=requests_mock)
     os.environ['MY_PLACE'] = 'xxxx:yyyy'
     os.environ['DARK_SKY_KEY'] = 'xxxx'
 
@@ -48,7 +48,7 @@ def test_weather_lowest(mocker):
 
 
 def test_weather_highest(mocker):
-    mocker.patch('weather.requests.get', side_effect=requests_mock)
+    mocker.patch('tempbotlib.weather.requests.get', side_effect=requests_mock)
     os.environ['MY_PLACE'] = 'xxxx:yyyy'
     os.environ['DARK_SKY_KEY'] = 'xxxx'
 

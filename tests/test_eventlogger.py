@@ -2,7 +2,7 @@
 
 import pytest
 import time
-import eventlogger
+import tempbotlib.eventlogger as eventlogger
 import random
 import os
 
@@ -67,7 +67,7 @@ def test_eventlogger_not_save():
             if random.random() < 0.3:
                 elog.log(cat)
 
-    filename = 'test/test_eventlogger_zucchini.png'
+    filename = 'tests/test_eventlogger_zucchini.png'
     if os.path.isfile(filename):
         os.remove(filename)
     ret = elog.save(filename=filename,
@@ -99,7 +99,7 @@ def test_eventlogger_save():
     assert ret == filename
     assert os.path.isfile(filename) is True
 
-    filename = 'test/test_eventlogger_apple.png'
+    filename = 'tests/test_eventlogger_apple.png'
     if os.path.isfile(filename):
         os.remove(filename)
     ret = elog.save(filename=filename, category='apple', title='event(apple)')

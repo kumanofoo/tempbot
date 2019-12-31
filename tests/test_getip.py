@@ -3,18 +3,18 @@
 import pytest
 import os
 import time
-import getip
+import tempbotlib.getip as getip
 
 
 @pytest.mark.parametrize(('config', 'expected'), [
     ("", "no 'GETIP_CONFIG' in environment variables"),
-    ("test/getip-test-cannot-open.conf", "cannot open configuration file"),
-    ("test/getip-test-nokey.conf", "'getip' key not found in"),
-    ("test/getip-test-cannot-parse.conf", "cannot parse configuration"),
-    ("test/getip-test-no-interval.conf", "'interval' not found"),
-    ("test/getip-test-interval-not-int.conf", "'interval' is not 'int'"),
-    ("test/getip-test-no-urls.conf", "'urls' not found"),
-    ("test/getip-test-urls-not-list.conf", "'urls' is not 'list'")
+    ("tests/getip-test-cannot-open.conf", "cannot open configuration file"),
+    ("tests/getip-test-nokey.conf", "'getip' key not found in"),
+    ("tests/getip-test-cannot-parse.conf", "cannot parse configuration"),
+    ("tests/getip-test-no-interval.conf", "'interval' not found"),
+    ("tests/getip-test-interval-not-int.conf", "'interval' is not 'int'"),
+    ("tests/getip-test-no-urls.conf", "'urls' not found"),
+    ("tests/getip-test-urls-not-list.conf", "'urls' is not 'list'")
 ])
 def test_getip_init_raise_config(config, expected):
     os.environ['GETIP_CONFIG'] = config
@@ -24,7 +24,7 @@ def test_getip_init_raise_config(config, expected):
 
 
 def test_getip_get(mocker):
-    os.environ['GETIP_CONFIG'] = 'test/getip-test.conf'
+    os.environ['GETIP_CONFIG'] = 'tests/getip-test.conf'
 
     responseMock = mocker.Mock()
     responseMock.status_code = 200
@@ -36,7 +36,7 @@ def test_getip_get(mocker):
 
 
 def test_getip_get_error(mocker):
-    os.environ['GETIP_CONFIG'] = 'test/getip-test.conf'
+    os.environ['GETIP_CONFIG'] = 'tests/getip-test.conf'
 
     responseMock = mocker.Mock()
     responseMock.status_code = 404
@@ -48,7 +48,7 @@ def test_getip_get_error(mocker):
 
 
 def test_getip_polling(mocker):
-    os.environ['GETIP_CONFIG'] = 'test/getip-test.conf'
+    os.environ['GETIP_CONFIG'] = 'tests/getip-test.conf'
 
     responseMock = mocker.Mock()
     responseMock.status_code = 200
@@ -109,7 +109,7 @@ def test_getip_polling(mocker):
 
 
 def test_getip_polling_with_server_error(mocker):
-    os.environ['GETIP_CONFIG'] = 'test/getip-test.conf'
+    os.environ['GETIP_CONFIG'] = 'tests/getip-test.conf'
 
     responseMock = mocker.Mock()
     responseMock.status_code = 404

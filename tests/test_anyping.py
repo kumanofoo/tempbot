@@ -3,7 +3,7 @@
 import time
 import os
 import pytest
-import anyping
+import tempbotlib.anyping as anyping
 import mocks
 
 
@@ -14,17 +14,20 @@ def test_anyping_init_raise_no_config():
 
 
 def test_anyping_init_raise_config_syntax_error():
-    os.environ['ANYPING_CONFIG'] = 'test/anyping-test-config-error.conf'
+    os.environ['ANYPING_CONFIG'] = 'tests/anyping-test-config-error.conf'
     with pytest.raises(anyping.AnypingError):
         anyping.Servers()
 
 
 def test_anyping_get_status_of_servers(mocker):
-    mocker.patch('anyping.dp.dns.resolver.query', side_effect=mocks.query_mock)
-    mocker.patch('anyping.hp.requests.get', side_effect=mocks.requests_mock)
-    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
+    mocker.patch('tempbotlib.anyping.dp.dns.resolver.query',
+                 side_effect=mocks.query_mock)
+    mocker.patch('tempbotlib.anyping.hp.requests.get',
+                 side_effect=mocks.requests_mock)
+    mocker.patch('tempbotlib.icmping.subprocess.Popen',
+                 side_effect=mocks.popen_mock)
 
-    os.environ['ANYPING_CONFIG'] = 'test/anyping-test.conf'
+    os.environ['ANYPING_CONFIG'] = 'tests/anyping-test.conf'
     responses = ['8.8.8.8 (DNS) is up',
                  '1.1.1.1 (DNS) is down: Hostname does not exist',
                  'https://httpstat.us/200 (Web) is up',
@@ -37,11 +40,14 @@ def test_anyping_get_status_of_servers(mocker):
 
 
 def test_anyping_ping(mocker):
-    mocker.patch('anyping.dp.dns.resolver.query', side_effect=mocks.query_mock)
-    mocker.patch('anyping.hp.requests.get', side_effect=mocks.requests_mock)
-    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
+    mocker.patch('tempbotlib.anyping.dp.dns.resolver.query',
+                 side_effect=mocks.query_mock)
+    mocker.patch('tempbotlib.anyping.hp.requests.get',
+                 side_effect=mocks.requests_mock)
+    mocker.patch('tempbotlib.icmping.subprocess.Popen',
+                 side_effect=mocks.popen_mock)
 
-    os.environ['ANYPING_CONFIG'] = 'test/anyping-test.conf'
+    os.environ['ANYPING_CONFIG'] = 'tests/anyping-test.conf'
     test_servers = {'8.8.8.8': 0,
                     '1.1.1.1': 0,
                     'https://httpstat.us/200': 0,
@@ -63,20 +69,23 @@ def test_anyping_ping(mocker):
 
 
 def test_anyping_icmp_raise():
-    os.environ['ANYPING_CONFIG'] = 'test/anyping-test-icmp-error.conf'
+    os.environ['ANYPING_CONFIG'] = 'tests/anyping-test-icmp-error.conf'
     with pytest.raises(anyping.AnypingError):
         anyping.Servers()
 
 
 def test_anyping_save_icmp_results(mocker):
-    mocker.patch('anyping.dp.dns.resolver.query', side_effect=mocks.query_mock)
-    mocker.patch('anyping.hp.requests.get', side_effect=mocks.requests_mock)
-    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
+    mocker.patch('tempbotlib.anyping.dp.dns.resolver.query',
+                 side_effect=mocks.query_mock)
+    mocker.patch('tempbotlib.anyping.hp.requests.get',
+                 side_effect=mocks.requests_mock)
+    mocker.patch('tempbotlib.icmping.subprocess.Popen',
+                 side_effect=mocks.popen_mock)
 
-    os.environ['ANYPING_CONFIG'] = 'test/anyping-test.conf'
-    responses = {'all': 'test/test_icmp_all.png',
-                 'www.example.com': 'test/test_icmp_0.png',
-                 'www.iana.org': 'test/test_icmp_1.png'}
+    os.environ['ANYPING_CONFIG'] = 'tests/anyping-test.conf'
+    responses = {'all': 'tests/test_icmp_all.png',
+                 'www.example.com': 'tests/test_icmp_0.png',
+                 'www.iana.org': 'tests/test_icmp_1.png'}
 
     ap = anyping.Servers()
     time.sleep(30)
@@ -88,11 +97,14 @@ def test_anyping_save_icmp_results(mocker):
 
 
 def test_anyping_save_icmp_fail(mocker):
-    mocker.patch('anyping.dp.dns.resolver.query', side_effect=mocks.query_mock)
-    mocker.patch('anyping.hp.requests.get', side_effect=mocks.requests_mock)
-    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
+    mocker.patch('tempbotlib.anyping.dp.dns.resolver.query',
+                 side_effect=mocks.query_mock)
+    mocker.patch('tempbotlib.anyping.hp.requests.get',
+                 side_effect=mocks.requests_mock)
+    mocker.patch('tempbotlib.icmping.subprocess.Popen',
+                 side_effect=mocks.popen_mock)
 
-    os.environ['ANYPING_CONFIG'] = 'test/anyping-test.conf'
+    os.environ['ANYPING_CONFIG'] = 'tests/anyping-test.conf'
 
     ap = anyping.Servers()
     time.sleep(5)

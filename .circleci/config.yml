@@ -23,7 +23,7 @@ jobs:
             python3 -m venv venv
             . venv/bin/activate
             pip install -r requirements.txt
-            pip install pytest pytest-mock
+            pip install pytest pytest-mock pytest-cov
 
       - save_cache:
           paths:
@@ -34,7 +34,7 @@ jobs:
           name: run tests
           command: |
             . venv/bin/activate
-            python -m pytest -v test
+            python -m pytest -v --cov=tempbotlib tests
 
       - store_artifacts:
           path: test-reports

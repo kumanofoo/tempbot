@@ -34,7 +34,7 @@ class GetIP:
 
         try:
             conf = json.load(f)
-        except Exception as e:
+        except ValueError as e:
             log.warning(e)
             raise GetIPError("cannot parse configuration")
 

@@ -4,8 +4,9 @@ import time
 import os
 import re
 import json
+import queue
 import pytest
-import book
+import tempbotlib.book as book
 
 
 os.environ['BOOK_CONFIG'] = 'book_config_dummy'
@@ -15,7 +16,7 @@ calil_appkey = os.environ['CALIL_APPKEY']
 
 
 def requests_mock(*args, **kwargs):
-    prefix = 'test/test_book_response_mock/'
+    prefix = 'tests/test_book_response_mock/'
     mockfiles = {
         'Twiter': 'twiter-search.html',
         'イマココ': 'imakoko-search.html'
@@ -64,17 +65,17 @@ def requests_mock(*args, **kwargs):
 @pytest.mark.parametrize(('config', 'appkey', 'expected'), [
     (book_config, '', "no 'CALIL_APPKEY' in environment variables"),
     ('', calil_appkey, "no 'BOOK_CONFIG' in environment variables"),
-    ('test/book-test-xxx.conf', calil_appkey,
+    ('tests/book-test-xxx.conf', calil_appkey,
      "cannot open configuration file "),
-    ('test/book-test-config-error.conf', calil_appkey,
+    ('tests/book-test-config-error.conf', calil_appkey,
      "cannot parse configuration"),
-    ('test/book-test-no-book.conf', calil_appkey, "'book' key not found in"),
+    ('tests/book-test-no-book.conf', calil_appkey, "'book' key not found in"),
 ])
-def test_book_init_raise_no_appkey(config, appkey, expected):
+def test_book_init_raise_no_key(config, appkey, expected):
     os.environ['BOOK_CONFIG'] = config
     os.environ['CALIL_APPKEY'] = appkey
     with pytest.raises(book.BookStatusError) as e:
-        book.BookStatus()
+        book.BookStatus(queue.Queue())
     assert str(e.value).startswith(expected)
 
 
@@ -86,11 +87,12 @@ def test_book_init_raise_no_appkey(config, appkey, expected):
      '- 東京都立図書館.中央.+\n- 国立国会図書館: 蔵書なし\n)')
 ])
 def test_book_search(mocker, bk, expected):
-    mocker.patch('book.requests.get', side_effect=requests_mock)
-    os.environ['BOOK_CONFIG'] = 'test/book-test.conf'
+    mocker.patch('tempbotlib.book.requests.get', side_effect=requests_mock)
+    os.environ['BOOK_CONFIG'] = 'tests/book-test.conf'
     os.environ['CALIL_APPKEY'] = calil_appkey
 
-    bs = book.BookStatus()
+    q = queue.Queue()
+    bs = book.BookStatus(q)
     result = bs.search(bk)
     assert result is True
     result = bs.search(bk)
@@ -104,7 +106,7 @@ def test_book_search(mocker, bk, expected):
         time.sleep(2)
     assert timeout is False
 
-    status = bs.result_by_string()
+    status = q.get()
     assert re.match(expected, status)
 
 

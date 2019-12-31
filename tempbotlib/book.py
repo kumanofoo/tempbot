@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
-import requests
 import time
-import bs4
 import re
 import os
 from threading import Thread
 import json
 import random
+import queue
+import bs4
+import requests
 
 import logging
 log = logging.getLogger(__name__)
@@ -25,11 +26,11 @@ class BookStatus:
     """
     check book's status in libraries
     """
-    def __init__(self):
+    def __init__(self, q):
         self.thread = None
         self.abort = False
-        self.book_status = None
         self.searching = False
+        self.messages = q
 
         self.CALIL_APPKEY = os.environ.get("CALIL_APPKEY")
         if not self.CALIL_APPKEY:
@@ -240,26 +241,43 @@ class BookStatus:
         log.debug('get_book_status(): %s' % json_data)
         return json_data
 
-    def run_search(self, book):
+    def run_search(self, book, result_format):
         log.debug('run_search(%s)' % book)
         result = {'book': book, 'data': {}}
 
         # isbns = self.get_isbn_c(book)
         isbns = self.get_isbn_h(book)
         if not isbns:
-            self.book_status = result
+            if result_format == 'json':
+                message = result
+            else:
+                message = self.result_by_string(result)
+            try:
+                self.messages.put_nowait(message)
+                log.debug('add queue: %s' % message)
+            except queue.Full as e:
+                log.warning("run_search(): %s" % e)
+
             self.searching = False
             return
 
         if self.abort:
             log.warning('abort run_search()')
-            self.book_status = result
             self.searching = False
             return
 
         book_status = self.get_book_status(isbns, self.libraries)
         if not book_status:
-            self.book_status = result
+            if result_format == 'json':
+                message = result
+            else:
+                message = self.result_by_string(result)
+            try:
+                self.messages.put_nowait(message)
+                log.debug('add queue: %s' % message)
+            except queue.Full as e:
+                log.warning("run_search(): %s" % e)
+
             self.searching = False
             return
 
@@ -275,37 +293,35 @@ class BookStatus:
                 library['status'] = status['libkey']
 
         log.debug('run_search(): %s' % result)
-        self.book_status = result
+        if result_format == 'json':
+            message = result
+        else:
+            message = self.result_by_string(result)
+        try:
+            self.messages.put_nowait(message)
+            log.debug('add queue: %s' % message)
+        except queue.Full as e:
+            log.warning("run_search(): %s" % e)
+
         self.searching = False
         return
 
-    def search(self, book):
-        self.book_status = None
+    def search(self, book, result_format='string'):
         if self.searching:
             log.warning('already searching')
             return False
-        self.thread = Thread(target=self.run_search, args=(book,))
+        self.thread = Thread(target=self.run_search,
+                             args=(book, result_format))
         self.searching = True
         self.thread.start()
 
         return True
 
-    def result(self, delete=True):
-        status = self.book_status
-        if delete:
-            self.book_status = None
-
-        return status
-
-    def result_by_string(self, delete=True):
-        status = self.book_status
-        if not status:
+    def result_by_string(self, result):
+        if not result:
             return None
 
-        if delete:
-            self.book_status = None
-
-        if not status['data']:
+        if not result['data']:
             emoji = [
                 ':collision:',
                 ':moyai:',
@@ -315,11 +331,11 @@ class BookStatus:
             ]
             return emoji[random.randrange(0, len(emoji))]
 
-        string = '[%s]\n' % status['book']
-        for title in status['data']:
+        string = '[%s]\n' % result['book']
+        for title in result['data']:
             string += '\n%s\n' % title
-            for systemid in status['data'][title]:
-                library = status['data'][title][systemid]
+            for systemid in result['data'][title]:
+                library = result['data'][title][systemid]
                 if library['status']:
                     for place in library['status']:
                         string += '- %s(%s): <%s|%s>\n' % (
@@ -382,7 +398,8 @@ if __name__ == '__main__':
     books = ['michi', '星界の報告', 'Twiter']
     # books = ['ナポレオン', 'リーダブルコード', 'インターネットを256倍使うための本']
 
-    bs = BookStatus()
+    q = queue.Queue()
+    bs = BookStatus(q)
     for book in books:
         if not bs.search(book):
             print("can't search %s" % book)
@@ -397,8 +414,9 @@ if __name__ == '__main__':
             time.sleep(2)
             # bs.abort = True
 
-        status = bs.result_by_string()
-        if status:
-            print(status)
-        else:
-            print('"%s" is not found' % book)
+        while not q.empty():
+            status = q.get()
+            if status:
+                print(status)
+            else:
+                print('"%s" is not found' % book)

@@ -4,9 +4,9 @@ import os
 import json
 import time
 
-import dnsping as dp
-import httping as hp
-import icmping as ip
+import tempbotlib.dnsping as dp
+import tempbotlib.httping as hp
+import tempbotlib.icmping as ip
 
 import logging
 log = logging.getLogger(__name__)
@@ -79,10 +79,10 @@ class Servers():
             else:
                 prop['alive'] = 0
 
-        icmp_sample_count = self.configuration.get('icmp_sample_count')
-        if not icmp_sample_count:
-            raise AnypingError("'icmp_sample_count' not found")
-        log.debug('icmp_sample_count: %d ' % icmp_sample_count)
+        icmp_sample_size = self.configuration.get('icmp_sample_size')
+        if not icmp_sample_size:
+            raise AnypingError("'icmp_sample_size' not found")
+        log.debug('icmp_sample_size: %d ' % icmp_sample_size)
 
         icmp_interval = self.configuration.get('icmp_interval')  # [sec]
         if not icmp_interval:
@@ -104,7 +104,7 @@ class Servers():
         for host in icmp_hosts:
             log.debug("icmp host=%s" % host)
             try:
-                ips = ip.Server(host=host, sample_count=icmp_sample_count,
+                ips = ip.Server(host=host, sample_count=icmp_sample_size,
                                 interval=icmp_interval,
                                 rotate=icmp_rotate)
             except Exception as e:

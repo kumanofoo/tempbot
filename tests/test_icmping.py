@@ -3,15 +3,16 @@
 import time
 import os
 import pytest
-import icmping
+import tempbotlib.icmping as icmping
 import mocks
 
 
 def test_icmping_save(mocker):
-    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
-    png1 = 'test/test_icmping_save1.png'
-    png2 = 'test/test_icmping_save2.png'
-    pngall = 'test/test_icmping_save_all.png'
+    mocker.patch('tempbotlib.icmping.subprocess.Popen',
+                 side_effect=mocks.popen_mock)
+    png1 = 'tests/test_icmping_save1.png'
+    png2 = 'tests/test_icmping_save2.png'
+    pngall = 'tests/test_icmping_save_all.png'
 
     ping1 = icmping.Server(host='www.example.com', sample_count=3, interval=5)
     ping2 = icmping.Server(host='1.1.1.1', sample_count=3, interval=5)
@@ -43,10 +44,11 @@ def test_icmping_save(mocker):
 
 
 def test_icmping_too_few_data(mocker):
-    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
-    png1 = 'test/test_icmping_save1.png'
-    png2 = 'test/test_icmping_save2.png'
-    pngall = 'test/test_icmping_save_all.png'
+    mocker.patch('tempbotlib.icmping.subprocess.Popen',
+                 side_effect=mocks.popen_mock)
+    png1 = 'tests/test_icmping_save1.png'
+    png2 = 'tests/test_icmping_save2.png'
+    pngall = 'tests/test_icmping_save_all.png'
 
     ping1 = icmping.Server(host='www.example.com', sample_count=3, interval=60)
     ping2 = icmping.Server(host='1.1.1.1', sample_count=3, interval=60)
@@ -78,7 +80,8 @@ def test_icmping_too_few_data(mocker):
 
 
 def test_icmping_exception(mocker):
-    mocker.patch('icmping.subprocess.Popen', side_effect=mocks.popen_mock)
+    mocker.patch('tempbotlib.icmping.subprocess.Popen',
+                 side_effect=mocks.popen_mock)
     with pytest.raises(icmping.PingError):
         icmping.Server(host='wwww.example.com')
 

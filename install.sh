@@ -3,9 +3,6 @@
 set -e
 
 tempbotd_dir="/opt/tempbotd"
-opt_tempbotd_module="anyping.py dnsping.py httping.py icmping.py"
-opt_tempbotd_module="${opt_tempbotd_module} weather.py eventlogger.py"
-opt_tempbotd_module="${opt_tempbotd_module} book.py getip.py temperature.py"
 
 docker_image="tempbot:test"
 docker_container="test_tempbot"
@@ -60,7 +57,7 @@ uninstall_tempbot() {
     systemctl disable tempbotd
     rm /etc/systemd/system/tempbotd.service
     rm /etc/default/tempbot
-    cd ${tempbotd_dir} && rm -f ${opt_tempbotd_module} \
+    cd ${tempbotd_dir} && rm -r tempbotlib \
                              tempbotd.py \
                              tempbot-sample.conf \
                              tempbot.conf

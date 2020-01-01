@@ -13,6 +13,7 @@
 ### test
 - pytest
 - pytest-mock
+- pytest-cov
 
 ### temperature sensor
 - DS18B20
@@ -60,14 +61,13 @@ $ sudo systemctl status tempbotd
 ## Test on Docker
 ### Requirements
 - docker
-- test/test.env
-- anyping.conf (option)
+- tests/test.env
 
-Copy tempbot to test/test.env
+Copy tempbot to tests/test.env
 ```Shellsession
-$ cp tempbot test/test.env
+$ cp tempbot tests/test.env
 ```
-Edit test/test.env
+Edit tests/test.env
 ```Shell
 # your Hubot API Token
 SLACK_BOT_TOKEN=xoxb-xxxxxxxxxxx-YYYYYYYYYYYYYYYYYYYYYYYY
@@ -78,24 +78,20 @@ CHANNEL_ID=XXXXXXXXX
 # your Hubot ID
 BOT_ID=YYYYYYYYY
 
-
 # dummy temprature sensor
-T_SENSOR_PATH=test/w1_slave
+T_SENSOR_PATH=tests/w1_slave
 
-ANYPING_CONFIG=/opt/tempbotd/anyping.conf
-
-
-# your Dark Sky Key
-DARK_SKY_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# configuration files
+ANYPING_CONFIG=/opt/tempbotd/tempbot.conf
+BOOK_CONFIG=/opt/tempbotd/tempbot.conf
+GETIP_CONFIG=/opt/tempbotd/tempbot.conf
+TEMPBOT_CONFIG=/opt/tempbotd/tempbot.conf
 
 # weather forecast place latitude:longitude
 MY_PLACE=35.3625:138.7306
 
-
 # your calil appkey
 CALIL_APPKEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-BOOK_CONFIG=/opt/tempbotd/book.conf
-
 
 TZ=Asia/Tokyo
 PYTHONDONTWRITEBYTECODE=1

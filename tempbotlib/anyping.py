@@ -4,9 +4,9 @@ import os
 import json
 import time
 
-import tempbotlib.dnsping as dp
-import tempbotlib.httping as hp
-import tempbotlib.icmping as ip
+from . import dnsping as dp
+from . import httping as hp
+from . import icmping as ip
 
 import logging
 log = logging.getLogger(__name__)

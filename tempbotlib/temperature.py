@@ -7,7 +7,7 @@ import json
 import time
 from threading import Thread
 import queue
-from tempbotlib.weather import Weather, WeatherError
+from .weather import Weather, WeatherError
 
 import matplotlib
 matplotlib.use("Agg") # noqa
@@ -365,7 +365,7 @@ if __name__ == '__main__':
     formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
     logging.basicConfig(level=log_level, format=formatter)
 
-    os.environ['TEMPERATURE_CONFIG'] = 'test/temperature-test.conf'
+    os.environ['TEMPERATURE_CONFIG'] = 'tests/temperature-test.conf'
 
     # pusedo sensor /tmp/w1_slave
     w1_slave_path = '/tmp/w1_slave'

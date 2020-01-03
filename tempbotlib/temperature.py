@@ -340,7 +340,7 @@ def plot_temperature(time, data, pngfile='/tmp/temp.png'):
     ax.set_title('temerature')
     ax.set_xlim(time[0], time[-1])
     ax.set_ylim(0, 50)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
     ax.grid()
 
     ax.tick_params(left=False, bottom=False)
@@ -368,7 +368,7 @@ if __name__ == '__main__':
     os.environ['TEMPERATURE_CONFIG'] = 'tests/temperature-test.conf'
 
     # pusedo sensor /tmp/w1_slave
-    w1_slave_path = '/tmp/w1_slave'
+    w1_slave_path = '/tmp/w1_slave_tests'
     w1_slave = """
 bd 01 4b 46 7f ff 03 10 ff : crc=ff YES
 bd 01 4b 46 7f ff 03 10 ff t=%05d
@@ -390,6 +390,10 @@ bd 01 4b 46 7f ff 03 10 ff t=%05d
         with open(w1_slave_path, 'w') as f:
             f.write(w1_slave % (t*1000))
         time.sleep(2.0)
+
+    # output graph
+    tp, tm = tmp.get_temp_time()
+    plot_temperature(tp, tm, pngfile='temp_test.png')
 
     # print output
     while not q.empty():

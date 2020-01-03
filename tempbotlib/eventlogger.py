@@ -86,7 +86,7 @@ class EventLogger:
         ax.set_ylim(0, cat_n+1)
 
         ax.set_title(title)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
         ax.grid()
 
         ax.tick_params(left=False, bottom=False)

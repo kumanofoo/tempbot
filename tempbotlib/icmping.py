@@ -162,7 +162,7 @@ class Server:
                 c=linecolor, alpha=0.4, linestyle='dotted')
         ax.set_title("ping to %s" % (self.host))
         ax.set_ylabel("ms")
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
         ax.grid()
 
         ax.tick_params(left=False, bottom=False)
@@ -238,7 +238,7 @@ def save_results(servers, filename="ping.png", title="ping"):
 
         ax.set_title(title)
         ax.set_ylabel("ms")
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
         ax.grid()
 
         ax.tick_params(left=False, bottom=False)

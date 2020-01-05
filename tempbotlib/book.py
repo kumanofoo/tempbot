@@ -91,15 +91,21 @@ class BookStatus:
 
         soup = bs4.BeautifulSoup(res.text, features='html.parser')
         title = soup.find_all('div', class_='title')
+        book_han = book.translate(ZEN2HAN).lower().split()
         for t in title:
             log.debug("%s (%s)" % (t.a.string.strip(), t.a['id']))
             if not t.a:
                 continue
             if t.a['id'] == 'link':
                 continue
-            t_han = t.a.string.strip().translate(ZEN2HAN)
-            pattern = r'^%s($|\s\S|\s$)' % (book)
-            if re.match(pattern, t_han, re.IGNORECASE):
+            t_han = t.a.string.strip().translate(ZEN2HAN).lower().split()
+            t_han.append('')  # sentinel
+            match = True
+            for b in book_han:
+                if t_han.pop(0) != b:
+                    match = False
+                    break
+            if match:
                 book_link.append((t.a.string.strip(),
                                  'https://calil.jp' + t.a.get('href')))
 
@@ -151,13 +157,18 @@ class BookStatus:
 
         soup = bs4.BeautifulSoup(res.text, features='html.parser')
         title = soup.find_all('a', class_='dyTitle')
-
+        book_han = book.translate(ZEN2HAN).lower().split()
         for t in title:
             log.debug("%s" % t)
-            t_han = t.string.translate(ZEN2HAN)
-            pattern = r'^%s($|\s\S|\s$)' % (book)
-            if re.match(pattern, t_han, re.IGNORECASE):
-                book_link.append((t_han, t.get('href')))
+            t_han = t.string.translate(ZEN2HAN).lower().split()
+            t_han.append('')  # sentinel
+            match = True
+            for b in book_han:
+                if t_han.pop(0) != b:
+                    match = False
+                    break
+            if match:
+                book_link.append((t.string.translate(ZEN2HAN), t.get('href')))
 
         for title, link in book_link[:max_count]:
             if self.abort:
@@ -245,8 +256,9 @@ class BookStatus:
         log.debug('run_search(%s)' % book)
         result = {'book': book, 'data': {}}
 
-        # isbns = self.get_isbn_c(book)
         isbns = self.get_isbn_h(book)
+        if not isbns:
+            isbns = self.get_isbn_c(book)
         if not isbns:
             if result_format == 'json':
                 message = result
@@ -394,9 +406,10 @@ if __name__ == '__main__':
     ナポレオン: many title
     リーダブルコード: one title
     インターネットを256倍使うための本: a few title
+    誰が音楽をタダにした？: with a special character
     """
     books = ['michi', '星界の報告', 'Twiter']
-    # books = ['ナポレオン', 'リーダブルコード', 'インターネットを256倍使うための本']
+    # books = ['ナポレオン', 'リーダブルコード', 'インターネットを256倍使うための本', '誰が音楽をタダにした？']
 
     q = queue.Queue()
     bs = BookStatus(q)

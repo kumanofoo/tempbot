@@ -8,6 +8,7 @@ import time
 from threading import Thread
 import queue
 from .weather import Weather, WeatherError
+from .command import Command
 
 import matplotlib
 matplotlib.use("Agg") # noqa
@@ -131,7 +132,8 @@ class Temperature:
 
         if m:
             try:
-                self.messages.put_nowait(m)
+                cmd = Command(message=m)
+                self.messages.put_nowait(cmd)
             except queue.Full as e:
                 log.warning("check_differnece(): %s" % e)
 
@@ -152,7 +154,8 @@ class Temperature:
 
         if m:
             try:
-                self.messages.put_nowait(m)
+                cmd = Command(message=m)
+                self.messages.put_nowait(cmd)
             except queue.Full as e:
                 log.warning("check_differnece(): %s" % e)
 
@@ -186,8 +189,8 @@ class Temperature:
     def get_temp_time(self):
         return self.timedata, self.tempdata
 
-    def run(self):
-        log.debug("run()")
+    def polling(self):
+        log.debug("polling()")
         self.plot_interval_t1 = datetime.today()
         while not self.thread_finish:
             t1 = datetime.today()
@@ -199,7 +202,7 @@ class Temperature:
                 time.sleep(0.1)
                 t2 = datetime.today()
 
-        log.debug("exit run()")
+        log.debug("exit polling()")
 
     def start_polling(self):
         log.debug("start_polling()")
@@ -207,7 +210,7 @@ class Temperature:
             log.warning("thread is already running")
             return
 
-        self.thread = Thread(target=self.run)
+        self.thread = Thread(target=self.polling)
         self.thread_finish = False
         self.thread.start()
         log.debug("exit start_polling()")
@@ -337,7 +340,7 @@ def plot_temperature(time, data, pngfile='/tmp/temp.png'):
     fig = plt.figure(figsize=(15, 4))
     ax = fig.add_subplot(1, 1, 1)
     ax.plot(time, data, c='#0000ff', alpha=0.7)
-    ax.set_title('temerature')
+    ax.set_title('temperature')
     ax.set_xlim(time[0], time[-1])
     ax.set_ylim(0, 50)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
@@ -367,8 +370,8 @@ if __name__ == '__main__':
 
     os.environ['TEMPERATURE_CONFIG'] = 'tests/temperature-test.conf'
 
-    # pusedo sensor /tmp/w1_slave
-    w1_slave_path = '/tmp/w1_slave_tests'
+    # pusedo sensor /tmp/w1_slave_test
+    w1_slave_path = '/tmp/w1_slave_test'
     w1_slave = """
 bd 01 4b 46 7f ff 03 10 ff : crc=ff YES
 bd 01 4b 46 7f ff 03 10 ff t=%05d
@@ -376,7 +379,7 @@ bd 01 4b 46 7f ff 03 10 ff t=%05d
     # pusedo temperature
     temp = [20, 21, 23, 26, 30, 31, 32, 33, 34, 35, 36, 35, 34, 32, 29, 28]
 
-    # initialize /tmp/w1_slave
+    # initialize /tmp/w1_slave_test
     with open(w1_slave_path, 'w') as f:
         f.write(w1_slave % (temp[0]*1000))
 
@@ -397,7 +400,7 @@ bd 01 4b 46 7f ff 03 10 ff t=%05d
 
     # print output
     while not q.empty():
-        print(q.get())
+        print(q.get().message)
 
     # stop Temperature
     tmp.finish_polling()

@@ -23,6 +23,7 @@
 - Hubot API token
 - Channel ID
 - Bot ID
+- Channel ID for searching book (Option)
 
 ### Dark Sky
 - Secret Key
@@ -74,6 +75,9 @@ SLACK_BOT_TOKEN=xoxb-xxxxxxxxxxx-YYYYYYYYYYYYYYYYYYYYYYYY
 
 # watching channel 
 CHANNEL_ID=XXXXXXXXX
+
+# searching book channel
+BOOK_CHANNEL=ZZZZZZZZZ
 
 # your Hubot ID
 BOT_ID=YYYYYYYYY

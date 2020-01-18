@@ -6,7 +6,6 @@ How to Build Your First Slack Bot With Python
 https://www.fullstackpython.com/blog/build-first-slack-bot-python.html
 """
 import os
-import re
 import time
 import datetime
 import queue
@@ -51,34 +50,62 @@ if not SLACK_BOT_TOKEN:
     log.critical('no environment variable SLACK_BOT_TOKEN')
     exit(1)
 
+BOOK_CHANNEL = os.environ.get('BOOK_CHANNEL')
+if not BOOK_CHANNEL:
+    log.info('no environment variable BOOK_CHANNEL')
+if BOOK_CHANNEL == CHANNEL_ID:
+    log.critical('CHANNEL_ID and BOOK_CHANNEL have the same ID')
+    exit(1)
+
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
-COMMAND_TIME = "time"
-COMMAND_DATE = "date"
-COMMAND_PLOT = "plot"
-COMMAND_PING = "ping"
-COMMAND_WEATHER = "weather"
-COMMAND_TRAFFIC = "traffic"
-COMMAND_LOG = "log"
-COMMAND_BOOK = "book"
-COMMAND_IP = "ip"
 
 # default parameters
 READ_WEBSOCKET_DELAY = 2    # 2 second delay between reading from firehose
 
-# command list
-COMMAND_CHAT = {
-    "hey": "Siri!",
-    "ok": "Google!",
-    "hello": "World!",
-    "do": "Sure...write some more code then i can do that!",
-    "help": "book date ip log ping plot time traffic weather",
-    "?": "book date ip log ping plot time traffic weather",
-}
-
-
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(SLACK_BOT_TOKEN)
+
+messages = queue.Queue()
+
+try:
+    temperature = tbd.temperature.Temperature(messages)
+    temperature.start_polling()
+except tbd.temperature.TemperatureError as e:
+    log.warning("Temperature: %s" % e)
+    log.info("Disable temperature")
+    temperature = None
+
+elog = tbd.eventlogger.EventLogger(buffer_size=128)
+
+try:
+    pingservers = tbd.anyping.Servers()
+except tbd.anyping.AnypingError as e:
+    log.warning("Anyping: %s" % e)
+    log.info("Disable any pings")
+    pingservers = None
+
+try:
+    forecast = tbd.temperature.OutsideTemperature()
+except tbd.temperature.TemperatureError as e:
+    log.warning("Weather forecast: %s" % e)
+    log.info("Disable outside temperature message")
+    forecast = None
+
+try:
+    book = tbd.book.BookStatus(messages)
+except tbd.book.BookStatusError as e:
+    log.warning("Book search: %s" % e)
+    log.info("Disable book search")
+    book = None
+
+try:
+    ipaddress = tbd.getip.GetIP(messages)
+    ipaddress.start_polling()
+except tbd.getip.GetIPError as e:
+    log.warning("Get IP address : %s" % e)
+    log.info("Disable IP address")
+    ipaddress = None
 
 
 def upload_file(file_path, title='temperature', channel=CHANNEL_ID):
@@ -90,99 +117,7 @@ def upload_file(file_path, title='temperature', channel=CHANNEL_ID):
         log.debug(r)
 
 
-def handle_command(command, channel):
-    """
-        Receives commands directed at the bot and determins if they
-        are valid commands. if so, then acts on the commands. if not,
-        returns back what it needs for clarification.
-    """
-    if temperature:
-        tmpr = temperature.get_temperature()
-        if tmpr:
-            response = '%.1f °C' % (tmpr)
-        else:
-            response = 'no sensor'
-    else:
-        response = 'no sensor'
-
-    if command in COMMAND_CHAT:
-        response = COMMAND_CHAT[command]
-
-    if command.startswith(COMMAND_TIME):
-        d = datetime.datetime.today()
-        response = d.strftime("%H:%M:%S")
-    if command.startswith(COMMAND_DATE):
-        d = datetime.datetime.today()
-        response = d.strftime("%Y-%m-%d")
-    if command.startswith(COMMAND_PLOT):
-        if temperature:
-            time, data = temperature.get_temp_time()
-            if len(time) > 2:
-                pngfile = tbd.temperature.plot_temperature(
-                    time, data, pngfile='/tmp/temp.png')
-                if pngfile:
-                    upload_file(pngfile, title='Temperature')
-                    response = 'plotted!'
-                else:
-                    response = 'plot is not available'
-            else:
-                response = 'no data'
-        else:
-            response = 'temperature is not available'
-    if command.startswith(COMMAND_PING):
-        if pingservers:
-            response = pingservers.get_status_of_servers()
-        else:
-            response = 'ping is not available'
-    if command.startswith(COMMAND_WEATHER):
-        if forecast:
-            response = forecast.fetch_temperature()
-        else:
-            response = 'weather information is not available'
-    if command.startswith(COMMAND_TRAFFIC):
-        traffic_files = pingservers.save_icmp_results()
-        if traffic_files:
-            for file in traffic_files:
-                upload_file(file[0], title='ICMP Echo Reply Message',
-                            channel=channel)
-            response = 'plotted %d graphs' % len(traffic_files)
-        else:
-            response = 'traffic is not available'
-    if command.startswith(COMMAND_LOG):
-        log_file = elog.save(filename="/tmp/elog.png")
-        if log_file:
-            upload_file(log_file, title='Event Log', channel=channel)
-            response = 'event log plotted!'
-        else:
-            response = 'no event log'
-    if command.startswith(COMMAND_BOOK):
-        if book:
-            cmd = command.strip()
-            cmd = re.split('[ 　]', cmd, 1)
-            if len(cmd) != 2:
-                response = 'book <title>'
-            else:
-                log.debug("command: %s, arg: %s", cmd[0], cmd[1])
-                if not book.searching:
-                    book.search(cmd[1])
-                    response = '"%s"...' % cmd[1]
-                else:
-                    response = 'sorry, busy with searching the other book'
-        else:
-            response = 'book is not available'
-    if command.startswith(COMMAND_IP):
-        response = ipaddress.current_ip
-
-    slack_client.api_call("chat.postMessage", channel=channel,
-                          text=response, as_user=True)
-
-
 def parse_slack_output(slack_rtm_output):
-    """
-        The Slack Real Time Messaging API is an envents firehose.
-        this parsing function returns None unless a message is
-        directed at the Bot, based on its ID.
-    """
     output_list = slack_rtm_output
     if output_list and len(output_list) > 0:
         for output in output_list:
@@ -194,47 +129,135 @@ def parse_slack_output(slack_rtm_output):
     return None, None
 
 
+class CommandHandler:
+    def __init__(self):
+        self.chat = {
+            "hey": "Siri!",
+            "ok": "Google!",
+            "hello": "World!",
+            "do": "Sure...write some more code then i can do that!",
+            "help": "book date ip log ping plot time traffic weather",
+            "?": "book date ip log ping plot time traffic weather",
+        }
+        self.command = {
+            "book": book.run,
+            "date": self.date,
+            "ip": self.ip,
+            "log": self.log,
+            "ping": self.ping,
+            "plot": self.plot,
+            "time": self.time,
+            "traffic": self.traffic,
+            "weather": self.weather,
+        }
+
+    def run(self, command, channel):
+        response = 'no sensor'
+        if temperature:
+            tmpr = temperature.get_temperature()
+            if tmpr:
+                response = '%.1f °C' % (tmpr)
+
+        if command in self.chat:
+            response = self.chat[command]
+
+        if channel == BOOK_CHANNEL:
+            command = 'book ' + command
+
+        for key in self.command:
+            if not command.startswith(key):
+                continue
+            if self.command[key]:
+                param = tbd.command.Command(command=command, channel=channel)
+                log.debug('param.files(%x): %s' % (id(param), param.files))
+                result = self.command[key](param)
+                log.debug('result.files: %s' % result.files)
+                for file in result.files:
+                    log.debug('result file: %s', file)
+                    upload_file(file[0], title=file[1], channel=channel)
+                response = result.message
+            else:
+                response = "'%s' command is not available" % key
+
+        slack_client.api_call("chat.postMessage", channel=channel,
+                              text=response, as_user=True)
+
+    def time(self, param):
+        param.message = datetime.datetime.today().strftime("%H:%M:%S")
+        return param
+
+    def date(self, param):
+        param.message = datetime.datetime.today().strftime("%Y-%m-%d")
+        return param
+
+    def traffic(self, param):
+        if not pingservers:
+            param.message = 'traffic is not available'
+            return param
+
+        traffic_files = pingservers.save_icmp_results()
+        if traffic_files:
+            log.debug('traffic_files: %s', traffic_files)
+            param.files = traffic_files
+            param.message = 'plotted %d graphs' % len(traffic_files)
+        else:
+            param.message = 'traffic is not available'
+        return param
+
+    def ping(self, param):
+        if pingservers:
+            param.message = pingservers.get_status_of_servers()
+        else:
+            param.message = 'ping is not available'
+        return param
+
+    def log(self, param):
+        log_file = elog.save(filename="/tmp/elog.png")
+        if log_file:
+            param.files = [(log_file, 'Event Log')]
+            param.message = 'event log plotted!'
+        else:
+            param.message = 'no event log'
+        return param
+
+    def ip(self, param):
+        if ipaddress:
+            ipaddr = ipaddress.get()
+            if ipaddr:
+                param.message = ipaddr
+            else:
+                param.message = 'cannot get IP address'
+        else:
+            param.message = 'ip is not available'
+        return param
+
+    def weather(self, param):
+        if forecast:
+            param.message = forecast.fetch_temperature()
+        else:
+            param.message = 'weather information is not available'
+        return param
+
+    def plot(self, param):
+        if temperature:
+            time, data = temperature.get_temp_time()
+            if len(time) > 2:
+                pngfile = tbd.temperature.plot_temperature(
+                    time, data, pngfile='/tmp/temp.png')
+                if pngfile:
+                    param.files = [(pngfile, 'Temperature')]
+                    param.message = 'plotted!'
+                else:
+                    param.message = 'plot is not available'
+            else:
+                param.message = 'no data'
+        else:
+            param.message = 'temperature is not available'
+        return param
+
+
 if __name__ == "__main__":
-    messages = queue.Queue()
-
-    try:
-        temperature = tbd.temperature.Temperature(messages)
-        temperature.start_polling()
-    except tbd.temperature.TemperatureError as e:
-        log.warning("Temperature: %s" % e)
-        log.info("Disable temperature")
-        temperature = None
-
-    elog = tbd.eventlogger.EventLogger(buffer_size=128)
-
-    try:
-        pingservers = tbd.anyping.Servers()
-    except tbd.anyping.AnypingError as e:
-        log.warning("Anyping: %s" % e)
-        log.info("Disable any pings")
-        pingservers = None
-
-    try:
-        forecast = tbd.temperature.OutsideTemperature()
-    except tbd.temperature.TemperatureError as e:
-        log.warning("Weather forecast: %s" % e)
-        log.info("Disable outside temperature message")
-        forecast = None
-
-    try:
-        book = tbd.book.BookStatus(messages)
-    except tbd.book.BookStatusError as e:
-        log.warning("Book search: %s" % e)
-        log.info("Disable book search")
-        book = None
-
-    try:
-        ipaddress = tbd.getip.GetIP()
-        ipaddress.start_polling()
-    except tbd.getip.GetIPError as e:
-        log.warning("Get IP address : %s" % e)
-        log.info("Disable IP address")
-        ipaddress = None
+    ch = CommandHandler()
 
     if pingservers:
         PING_INTERVAL_TIMER = int(pingservers.interval/READ_WEBSOCKET_DELAY)
@@ -251,7 +274,7 @@ if __name__ == "__main__":
                 log.debug("got command(%s): %s" % (channel, command))
                 if command and channel:
                     elog.log('command')
-                    handle_command(command, channel)
+                    ch.run(command, channel)
 
                 time.sleep(READ_WEBSOCKET_DELAY)
             except (websocket.WebSocketConnectionClosedException,
@@ -272,9 +295,16 @@ if __name__ == "__main__":
                 time.sleep(READ_WEBSOCKET_DELAY)
 
             while not messages.empty():
+                mes = messages.get()
+                if mes.channel:
+                    channel = mes.channel
+                else:
+                    channel = CHANNEL_ID
+                log.debug('messages.get(): "%s"(channel=%s)' %
+                          (mes.message, mes.channel))
                 slack_client.api_call("chat.postMessage",
-                                      channel=CHANNEL_ID,
-                                      text=messages.get(),
+                                      channel=channel,
+                                      text=mes.message,
                                       as_user=True)
 
             if pingservers:

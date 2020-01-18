@@ -85,7 +85,7 @@ bd 01 4b 46 7f ff 03 10 ff t=%05d
     sensor.finish_polling()
 
     while not q.empty():
-        assert q.get() == expected.pop(0)
+        assert q.get().message == expected.pop(0)
 
     pngfile = '/tmp/test-temp.png'
     timedata, tempdata = sensor.get_temp_time()

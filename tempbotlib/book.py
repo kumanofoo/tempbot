@@ -101,10 +101,11 @@ class BookStatus:
             t_han = t.a.string.strip().translate(ZEN2HAN).lower().split()
             t_han.append('')  # sentinel
             match = True
-            for b in book_han:
-                if t_han.pop(0) != b:
-                    match = False
-                    break
+            if not re.match(r'^\d{10}$', book.translate(ZEN2HAN)):  # not ISBN
+                for b in book_han:
+                    if t_han.pop(0) != b:
+                        match = False
+                        break
             if match:
                 book_link.append((t.a.string.strip(),
                                  'https://calil.jp' + t.a.get('href')))
@@ -163,10 +164,11 @@ class BookStatus:
             t_han = t.string.translate(ZEN2HAN).lower().split()
             t_han.append('')  # sentinel
             match = True
-            for b in book_han:
-                if t_han.pop(0) != b:
-                    match = False
-                    break
+            if not re.match(r'^\d{10}$', book.translate(ZEN2HAN)):  # not ISBN
+                for b in book_han:
+                    if t_han.pop(0) != b:
+                        match = False
+                        break
             if match:
                 book_link.append((t.string.translate(ZEN2HAN), t.get('href')))
 
@@ -252,7 +254,7 @@ class BookStatus:
         log.debug('get_book_status(): %s' % json_data)
         return json_data
 
-    def run_search(self, book, result_format):
+    def run_search(self, book, result_format, param):
         log.debug('run_search(%s)' % book)
         result = {'book': book, 'data': {}}
 
@@ -261,12 +263,12 @@ class BookStatus:
             isbns = self.get_isbn_c(book)
         if not isbns:
             if result_format == 'json':
-                message = result
+                param.args['json'] = result
             else:
-                message = self.result_by_string(result)
+                param.message = self.result_by_string(result)
             try:
-                self.messages.put_nowait(message)
-                log.debug('add queue: %s' % message)
+                self.messages.put_nowait(param)
+                log.debug('add queue: %s' % param.message)
             except queue.Full as e:
                 log.warning("run_search(): %s" % e)
 
@@ -281,12 +283,12 @@ class BookStatus:
         book_status = self.get_book_status(isbns, self.libraries)
         if not book_status:
             if result_format == 'json':
-                message = result
+                param.args['json'] = result
             else:
-                message = self.result_by_string(result)
+                param.message = 'Search error :construction:'
             try:
-                self.messages.put_nowait(message)
-                log.debug('add queue: %s' % message)
+                self.messages.put_nowait(param)
+                log.debug('add queue: %s' % param.message)
             except queue.Full as e:
                 log.warning("run_search(): %s" % e)
 
@@ -301,33 +303,53 @@ class BookStatus:
                 library = result['data'][title][systemid]
                 status = book_status['books'][isbn][systemid]
                 library['name'] = self.configuration[systemid]
-                library['url'] = status['reserveurl']
-                library['status'] = status['libkey']
+                if status['status'] == 'OK' or status['status'] == 'Cache':
+                    library['url'] = status['reserveurl']
+                    library['status'] = status['libkey']
+                else:
+                    library['url'] = 'https://httpbin.org/status/418'
+                    library['status'] = {' -_-': 'Error'}
 
         log.debug('run_search(): %s' % result)
         if result_format == 'json':
-            message = result
+            param.args['json'] = result
         else:
-            message = self.result_by_string(result)
+            param.message = self.result_by_string(result)
         try:
-            self.messages.put_nowait(message)
-            log.debug('add queue: %s' % message)
+            self.messages.put_nowait(param)
+            log.debug('add queue: %s' % param.message)
         except queue.Full as e:
             log.warning("run_search(): %s" % e)
 
         self.searching = False
         return
 
-    def search(self, book, result_format='string'):
+    def search(self, book, param=None, result_format='string'):
         if self.searching:
             log.warning('already searching')
             return False
         self.thread = Thread(target=self.run_search,
-                             args=(book, result_format))
+                             args=(book, result_format, param))
         self.searching = True
         self.thread.start()
 
         return True
+
+    def run(self, param):
+        log.debug('command(): %s, %s' % (param.command, param.channel))
+        cmd = param.command.strip()
+        cmd = re.split('[ 　]', cmd, 1)
+        if len(cmd) == 2:
+            res = self.search(cmd[1], param=param)
+            if res:
+                param.message = '"%s"...' % cmd[1]
+            else:
+                param.message = 'sorry, busy with searching the other book'
+        else:
+            param.message = 'book <title>'
+
+        log.debug('exit command(): %s' % param.message)
+        return param
 
     def result_by_string(self, result):
         if not result:
@@ -395,6 +417,7 @@ if __name__ == '__main__':
     """
     for debug
     """
+    from .command import Command
     log_level = logging.DEBUG
     formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
     logging.basicConfig(level=log_level, format=formatter)
@@ -414,9 +437,10 @@ if __name__ == '__main__':
     q = queue.Queue()
     bs = BookStatus(q)
     for book in books:
-        if not bs.search(book):
-            print("can't search %s" % book)
-            exit(0)
+        param = Command(channel='123456789')
+        param.command = 'book ' + book
+        res = bs.run(param)
+        print(res.message)
 
         while bs.searching:
             print('wait for results...')
@@ -430,6 +454,11 @@ if __name__ == '__main__':
         while not q.empty():
             status = q.get()
             if status:
-                print(status)
+                print('----- status.message ----')
+                print(status.message)
+                print('----- status.channel ----')
+                print(status.channel)
+                print('----- status.files ----')
+                print(status.files)
             else:
                 print('"%s" is not found' % book)

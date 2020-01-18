@@ -7,7 +7,7 @@ import json
 import queue
 import pytest
 import tempbotlib.book as book
-
+import tempbotlib.command as command
 
 os.environ['BOOK_CONFIG'] = 'book_config_dummy'
 os.environ['CALIL_APPKEY'] = 'calil_appkey_dummy'
@@ -79,24 +79,27 @@ def test_book_init_raise_no_key(config, appkey, expected):
     assert str(e.value).startswith(expected)
 
 
-@pytest.mark.parametrize(('bk', 'expected'), [
-    ('Twiter', r':.+:'),  # not found
-    ('イマココ',
+@pytest.mark.parametrize(('bk', 'channel', 'expected'), [
+    ('Twiter', '123456789', r':.+:'),  # not found
+    ('イマココ', 'ABCDEFGHI',
      '.イマココ.\n\nイマココ 渡り鳥からグーグル・アースまで、空間認知の科学\n'
      '(- 国立国会図書館: 蔵書なし\n- 東京都立図書館.中央.+\n|'
      '- 東京都立図書館.中央.+\n- 国立国会図書館: 蔵書なし\n)')
 ])
-def test_book_search(mocker, bk, expected):
+def test_book_search(mocker, bk, channel, expected):
     mocker.patch('tempbotlib.book.requests.get', side_effect=requests_mock)
     os.environ['BOOK_CONFIG'] = 'tests/book-test.conf'
     os.environ['CALIL_APPKEY'] = calil_appkey
 
     q = queue.Queue()
     bs = book.BookStatus(q)
-    result = bs.search(bk)
-    assert result is True
-    result = bs.search(bk)
-    assert result is False
+
+    book_command = command.Command(channel=channel)
+    book_command.command = 'book ' + bk
+    result = bs.run(book_command)
+    assert result.message == '"%s"...' % bk
+    result = bs.run(book_command)
+    assert result.message == 'sorry, busy with searching the other book'
 
     timeout = True
     for i in range(30):
@@ -107,7 +110,8 @@ def test_book_search(mocker, bk, expected):
     assert timeout is False
 
     status = q.get()
-    assert re.match(expected, status)
+    assert re.match(expected, status.message)
+    assert channel == status.channel
 
 
 if __name__ == '__main__':

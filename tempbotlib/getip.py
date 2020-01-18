@@ -6,6 +6,9 @@ import requests
 from datetime import datetime
 from threading import Thread
 import time
+import queue
+from .command import Command
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -15,11 +18,12 @@ class GetIPError(Exception):
 
 
 class GetIP:
-    def __init__(self):
+    def __init__(self, q):
         log.debug("__init__()")
         self.interval = None
         self.thread_finish = False
         self.thread = None
+        self.messages = q
 
         self.GETIP_CONFIG = os.environ.get("GETIP_CONFIG")
         if not self.GETIP_CONFIG:
@@ -98,6 +102,14 @@ class GetIP:
         while not self.thread_finish:
             t1 = datetime.today()
             self.get()
+            if self.is_new():
+                m = 'New IP address %s' % self.current_ip
+                try:
+                    cmd = Command(message=m)
+                    self.messages.put_nowait(cmd)
+                except queue.Full as e:
+                    log.warning("run(): %s" % e)
+
             t2 = datetime.today()
             while (t2 - t1).total_seconds() < self.interval:
                 if self.thread_finish:
@@ -137,9 +149,13 @@ if __name__ == '__main__':
     formatter = '%(asctime)s %(name)s[%(lineno)s] %(levelname)s: %(message)s'
     logging.basicConfig(level=log_level, format=formatter)
 
-    ip = GetIP()
+    q = queue.Queue()
+    ip = GetIP(q)
     ip.start_polling()
     for i in range(5):
-        print(ip.is_new(), ip.current_ip)
+        print(ip.current_ip)
+        if not q.empty():
+            mes = q.get()
+            print(mes.message)
         time.sleep(10)
     ip.finish_polling()
